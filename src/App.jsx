@@ -202,6 +202,23 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [projects, setProjects] = useState(() => {
+    const local = localStorage.getItem('leads_crm_projects');
+    if (local) {
+      try { return JSON.parse(local); } catch (e) { console.error(e); }
+    }
+    return [];
+  });
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [newProjectForm, setNewProjectForm] = useState({
+    client_name: '',
+    project_name: '',
+    status: 'Not Started',
+    start_date: new Date().toISOString().split('T')[0],
+    deadline: '',
+    notes: ''
+  });
   
   // Settings Inputs
   const [tempSheetId, setTempSheetId] = useState(syncConfig.sheetId);
@@ -231,6 +248,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('leads_crm_data', JSON.stringify(leads));
   }, [leads]);
+
+  useEffect(() => {
+    localStorage.setItem('leads_crm_projects', JSON.stringify(projects));
+  }, [projects]);
 
   useEffect(() => {
     localStorage.setItem('leads_crm_sync_config', JSON.stringify(syncConfig));
@@ -533,6 +554,48 @@ export default function App() {
     }
   };
 
+  const handleAddProject = (e) => {
+    e.preventDefault();
+    if (!newProjectForm.client_name || !newProjectForm.project_name) {
+      alert("Please select a client and fill in the project name.");
+      return;
+    }
+    const newProj = {
+      id: `proj_${Date.now()}`,
+      client_name: newProjectForm.client_name,
+      project_name: newProjectForm.project_name,
+      status: newProjectForm.status,
+      start_date: newProjectForm.start_date || new Date().toISOString().split('T')[0],
+      deadline: newProjectForm.deadline || '',
+      notes: newProjectForm.notes || '',
+      created_by: 'Sarfaraz'
+    };
+
+    setProjects(prev => [newProj, ...prev]);
+    setIsAddProjectOpen(false);
+    setNewProjectForm({
+      client_name: '',
+      project_name: '',
+      status: 'Not Started',
+      start_date: new Date().toISOString().split('T')[0],
+      deadline: '',
+      notes: ''
+    });
+    showToast('🚀 Project added successfully!');
+  };
+
+  const handleUpdateProjectStatus = (projectId, newStatus) => {
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus } : p));
+    showToast(`💼 Project status updated to ${newStatus}`);
+  };
+
+  const handleDeleteProject = (projectId) => {
+    if (window.confirm("Kya aap is project ko delete karna chahte hain?")) {
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      showToast('🗑️ Project deleted!');
+    }
+  };
+
   const handleSaveSettings = (e) => {
     e.preventDefault();
     const newConfig = {
@@ -588,7 +651,9 @@ export default function App() {
   const handleResetToDefault = () => {
     if (window.confirm("Kya aap sach mein CRM data ko reset karke original clean CSV data se restore karna chahte hain? Sabhi changes lost ho jayenge.")) {
       localStorage.removeItem('leads_crm_data');
+      localStorage.removeItem('leads_crm_projects');
       setLeads(seedLeadsData);
+      setProjects([]);
       showToast('🔄 CRM data reset to default clean CSV values!');
       setIsSettingsOpen(false);
     }
@@ -1007,9 +1072,152 @@ export default function App() {
         )}
 
         {activeTab === 'projects' && (
-          <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-8 text-center text-slate-500 font-medium">
-            Projects Section (Step 3) placeholder.
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            {/* Header section */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-indigo-400" />
+                  Active Client Projects
+                </h2>
+                <p className="text-xs text-slate-400">Track deliverables, revisions, and status on Kanban board</p>
+              </div>
+              <button
+                onClick={() => {
+                  setNewProjectForm(prev => ({
+                    ...prev,
+                    client_name: leads.length > 0 ? leads[0].business_name : ''
+                  }));
+                  setIsAddProjectOpen(true);
+                }}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold rounded-xl hover:brightness-110 shadow-lg shadow-indigo-500/10 transition active:scale-95 cursor-pointer w-full sm:w-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Project</span>
+              </button>
+            </div>
+
+            {/* Kanban Board Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { id: 'Not Started', title: 'Not Started', dot: 'bg-slate-400' },
+                { id: 'In Progress', title: 'In Progress', dot: 'bg-blue-400' },
+                { id: 'Delivered', title: 'Delivered', dot: 'bg-emerald-400' },
+                { id: 'Revision', title: 'Revision', dot: 'bg-amber-400' }
+              ].map(column => {
+                const columnProjects = projects.filter(p => p.status === column.id);
+
+                return (
+                  <div
+                    key={column.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const projectId = e.dataTransfer.getData('text/plain');
+                      handleUpdateProjectStatus(projectId, column.id);
+                    }}
+                    className="flex flex-col bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-4 min-h-[500px] transition-colors duration-200"
+                  >
+                    {/* Column Header */}
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200 dark:border-white/5">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${column.dot}`}></span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{column.title}</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded text-slate-400">
+                        {columnProjects.length}
+                      </span>
+                    </div>
+
+                    {/* Column Cards Container */}
+                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[600px] pr-1">
+                      {columnProjects.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-slate-200 dark:border-white/5 rounded-xl p-4 text-center bg-slate-50/50 dark:bg-white/[0.01]">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono">No Projects</span>
+                        </div>
+                      ) : (
+                        columnProjects.map(project => (
+                          <div
+                            key={project.id}
+                            draggable
+                            onDragStart={(e) => e.dataTransfer.setData('text/plain', project.id)}
+                            className="group relative bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 p-4 rounded-xl shadow-sm hover:border-indigo-500/30 transition duration-150 cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3"
+                          >
+                            {/* Project content */}
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight group-hover:text-indigo-400 transition break-words">
+                                  {project.project_name}
+                                </h4>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProject(project.id)}
+                                  className="text-slate-500 hover:text-rose-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition flex-shrink-0"
+                                  title="Delete Project"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                                <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                <span className="font-semibold truncate">{project.client_name}</span>
+                              </div>
+
+                              {project.notes && (
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 italic font-serif">
+                                  "{project.notes}"
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Card Footer / Quick Controls */}
+                            <div className="flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-white/5 mt-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                  <Calendar className="w-3 h-3 text-slate-450" />
+                                  <span>Deadline:</span>
+                                </div>
+                                <span className={`font-mono font-semibold ${
+                                  project.deadline && new Date(project.deadline) < new Date() 
+                                    ? 'text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20' 
+                                    : 'text-slate-500 dark:text-slate-400'
+                                }`}>
+                                  {project.deadline || '—'}
+                                </span>
+                              </div>
+
+                              {/* Mobile Quick Switcher */}
+                              <div className="relative mt-1">
+                                <select
+                                  value={project.status}
+                                  onChange={(e) => handleUpdateProjectStatus(project.id, e.target.value)}
+                                  className="w-full appearance-none bg-slate-100 dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 text-[9px] text-slate-500 dark:text-slate-400 font-mono rounded py-1 px-2 pr-6 outline-none focus:border-indigo-500/50 cursor-pointer"
+                                >
+                                  <option disabled>Move to...</option>
+                                  <option value="Not Started">Not Started</option>
+                                  <option value="In Progress">In Progress</option>
+                                  <option value="Delivered">Delivered</option>
+                                  <option value="Revision">Revision</option>
+                                </select>
+                                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
         )}
 
         {activeTab === 'invoices' && (
@@ -1668,6 +1876,160 @@ export default function App() {
                     className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:brightness-110"
                   >
                     Save Lead
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ADD PROJECT SLIDE DRAWER */}
+      <AnimatePresence>
+        {isAddProjectOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddProjectOpen(false)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+            {/* Form Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white dark:bg-[#0c0e12] border-l border-slate-200 dark:border-white/10 z-50 shadow-2xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <form onSubmit={handleAddProject} className="h-full flex flex-col justify-between">
+                <div>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-5 border-b border-white/5 mb-6">
+                    <div>
+                      <h2 className="font-extrabold text-xl text-slate-800 dark:text-slate-100">Add New Project</h2>
+                      <p className="text-xs text-slate-400">Launch a new project tracking module</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddProjectOpen(false)}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition duration-150"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Client Name selection */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Client / Lead *</label>
+                      {leads.length === 0 ? (
+                        <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">
+                          No leads available. Please add a lead/client first.
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <select
+                            required
+                            value={newProjectForm.client_name}
+                            onChange={(e) => setNewProjectForm({ ...newProjectForm, client_name: e.target.value })}
+                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-650 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="" disabled>Select a Client...</option>
+                            {leads.map(lead => (
+                              <option key={lead.id} value={lead.business_name}>
+                                {lead.business_name}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Project Name */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Project Name *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newProjectForm.project_name}
+                        onChange={(e) => setNewProjectForm({ ...newProjectForm, project_name: e.target.value })}
+                        placeholder="e.g. E-Commerce Website Development"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                      />
+                    </div>
+
+                    {/* Status selection */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Initial Status</label>
+                      <div className="relative">
+                        <select
+                          value={newProjectForm.status}
+                          onChange={(e) => setNewProjectForm({ ...newProjectForm, status: e.target.value })}
+                          className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-650 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                        >
+                          <option value="Not Started">Not Started</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Revision">Revision</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Start Date & Deadline */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Start Date</label>
+                        <input 
+                          type="date"
+                          value={newProjectForm.start_date}
+                          onChange={(e) => setNewProjectForm({ ...newProjectForm, start_date: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Deadline</label>
+                        <input 
+                          type="date"
+                          value={newProjectForm.deadline}
+                          onChange={(e) => setNewProjectForm({ ...newProjectForm, deadline: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Project Notes</label>
+                      <textarea 
+                        value={newProjectForm.notes}
+                        onChange={(e) => setNewProjectForm({ ...newProjectForm, notes: e.target.value })}
+                        placeholder="Detail scope, technologies, or notes..."
+                        rows={4}
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-white/5 flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddProjectOpen(false)}
+                    className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 py-3 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={leads.length === 0}
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl text-xs font-semibold hover:brightness-110 disabled:opacity-40"
+                  >
+                    Launch Project
                   </button>
                 </div>
               </form>
