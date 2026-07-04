@@ -26,7 +26,9 @@ import {
   Building2,
   Trash2,
   Sun,
-  Moon
+  Moon,
+  FileText,
+  DollarSign
 } from 'lucide-react';
 
 // Custom inline brand icon for Instagram since Lucide-react deprecated brand icons
@@ -219,6 +221,23 @@ export default function App() {
     deadline: '',
     notes: ''
   });
+
+  const [invoices, setInvoices] = useState(() => {
+    const local = localStorage.getItem('leads_crm_invoices');
+    if (local) {
+      try { return JSON.parse(local); } catch (e) { console.error(e); }
+    }
+    return [];
+  });
+  const [isAddInvoiceOpen, setIsAddInvoiceOpen] = useState(false);
+  const [newInvoiceForm, setNewInvoiceForm] = useState({
+    client_name: '',
+    project_id: '',
+    amount: '',
+    currency: 'USD',
+    status: 'Draft',
+    due_date: '',
+  });
   
   // Settings Inputs
   const [tempSheetId, setTempSheetId] = useState(syncConfig.sheetId);
@@ -252,6 +271,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('leads_crm_projects', JSON.stringify(projects));
   }, [projects]);
+
+  useEffect(() => {
+    localStorage.setItem('leads_crm_invoices', JSON.stringify(invoices));
+  }, [invoices]);
 
   useEffect(() => {
     localStorage.setItem('leads_crm_sync_config', JSON.stringify(syncConfig));
@@ -364,6 +387,28 @@ export default function App() {
         return 0;
       });
   }, [leads, searchTerm, filterPriority, filterStatus, filterCategory, sortBy, sortOrder]);
+
+  // --- INVOICES COMPUTATIONS ---
+  const invoiceStats = useMemo(() => {
+    const outstanding = invoices
+      .filter(inv => inv.status !== 'Paid')
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+
+    const paidThisMonth = invoices
+      .filter(inv => {
+        if (inv.status !== 'Paid') return false;
+        const dateStr = inv.created_date || ''; // YYYY-MM-DD
+        if (!dateStr) return false;
+        const [year, month] = dateStr.split('-');
+        const now = new Date();
+        const curYear = now.getFullYear().toString();
+        const curMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+        return year === curYear && month === curMonth;
+      })
+      .reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+
+    return { outstanding, paidThisMonth };
+  }, [invoices]);
 
   // --- ANALYTICS COMPUTATIONS ---
   const analyticsData = useMemo(() => {
@@ -596,6 +641,49 @@ export default function App() {
     }
   };
 
+  const handleAddInvoice = (e) => {
+    e.preventDefault();
+    if (!newInvoiceForm.client_name || !newInvoiceForm.amount) {
+      alert("Please select a client and fill in the amount.");
+      return;
+    }
+    const newInv = {
+      id: `inv_${Date.now()}`,
+      client_name: newInvoiceForm.client_name,
+      project_id: newInvoiceForm.project_id || '',
+      amount: parseFloat(newInvoiceForm.amount || 0),
+      currency: newInvoiceForm.currency || 'USD',
+      status: newInvoiceForm.status || 'Draft',
+      due_date: newInvoiceForm.due_date || '',
+      created_date: new Date().toISOString().split('T')[0],
+      created_by: 'Sarfaraz'
+    };
+
+    setInvoices(prev => [newInv, ...prev]);
+    setIsAddInvoiceOpen(false);
+    setNewInvoiceForm({
+      client_name: '',
+      project_id: '',
+      amount: '',
+      currency: 'USD',
+      status: 'Draft',
+      due_date: '',
+    });
+    showToast('🧾 Invoice created successfully!');
+  };
+
+  const handleUpdateInvoiceStatus = (invoiceId, newStatus) => {
+    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv));
+    showToast(`🧾 Invoice status updated to ${newStatus}`);
+  };
+
+  const handleDeleteInvoice = (invoiceId) => {
+    if (window.confirm("Kya aap is invoice ko delete karna chahte hain?")) {
+      setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+      showToast('🗑️ Invoice deleted!');
+    }
+  };
+
   const handleSaveSettings = (e) => {
     e.preventDefault();
     const newConfig = {
@@ -652,8 +740,10 @@ export default function App() {
     if (window.confirm("Kya aap sach mein CRM data ko reset karke original clean CSV data se restore karna chahte hain? Sabhi changes lost ho jayenge.")) {
       localStorage.removeItem('leads_crm_data');
       localStorage.removeItem('leads_crm_projects');
+      localStorage.removeItem('leads_crm_invoices');
       setLeads(seedLeadsData);
       setProjects([]);
+      setInvoices([]);
       showToast('🔄 CRM data reset to default clean CSV values!');
       setIsSettingsOpen(false);
     }
@@ -1221,9 +1311,210 @@ export default function App() {
         )}
 
         {activeTab === 'invoices' && (
-          <div className="bg-[#ffffff] dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-8 text-center text-slate-500 font-medium">
-            Invoices Section (Step 4) placeholder.
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            {/* Header section */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-indigo-400" />
+                  Billing & Invoices
+                </h2>
+                <p className="text-xs text-slate-400">Manage client billing schedules, currencies, and receipts</p>
+              </div>
+              <button
+                onClick={() => {
+                  setNewInvoiceForm(prev => ({
+                    ...prev,
+                    client_name: leads.length > 0 ? leads[0].business_name : '',
+                    project_id: ''
+                  }));
+                  setIsAddInvoiceOpen(true);
+                }}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold rounded-xl hover:brightness-110 shadow-lg shadow-indigo-500/10 transition active:scale-95 cursor-pointer w-full sm:w-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Invoice</span>
+              </button>
+            </div>
+
+            {/* Invoices summary row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Card 1: Outstanding Invoices */}
+              <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Outstanding Balance</span>
+                  <DollarSign className="w-4.5 h-4.5 text-rose-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-rose-400">
+                    ${invoiceStats.outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Unpaid or pending invoices</p>
+                </div>
+              </div>
+
+              {/* Card 2: Paid This Month */}
+              <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Paid This Month</span>
+                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-emerald-400">
+                    ${invoiceStats.paidThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Collected in current month</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Invoices List / Table */}
+            <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden transition-colors duration-200">
+              {invoices.length === 0 ? (
+                <div className="p-12 text-center flex flex-col items-center justify-center border border-dashed border-slate-200 dark:border-white/5 rounded-2xl m-4 bg-slate-50/50 dark:bg-white/[0.01]">
+                  <FileText className="w-10 h-10 text-slate-500 mb-3" />
+                  <h3 className="text-sm font-bold text-slate-350">No Invoices Found</h3>
+                  <p className="text-xs text-slate-500 mt-1">Create an invoice to start tracking payments.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop View Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-250 dark:border-white/5 bg-slate-50 dark:bg-[#171922] text-[10px] text-slate-500 font-mono tracking-wider uppercase">
+                          <th className="py-3.5 px-5">Client</th>
+                          <th className="py-3.5 px-5">Project</th>
+                          <th className="py-3.5 px-5">Amount</th>
+                          <th className="py-3.5 px-5">Status</th>
+                          <th className="py-3.5 px-5">Due Date</th>
+                          <th className="py-3.5 px-5">Issued Date</th>
+                          <th className="py-3.5 px-5 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-white/5 text-xs text-slate-600 dark:text-slate-300">
+                        {invoices.map(invoice => {
+                          const project = projects.find(p => p.id === invoice.project_id);
+                          const isOverdue = invoice.status === 'Overdue' || (invoice.status !== 'Paid' && invoice.due_date && new Date(invoice.due_date) < new Date());
+                          
+                          // Dynamic Status Badges Styles
+                          let statusClass = 'bg-slate-500/10 text-slate-400 border-slate-500/15';
+                          if (invoice.status === 'Paid') statusClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25';
+                          else if (invoice.status === 'Sent') statusClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                          else if (isOverdue || invoice.status === 'Overdue') statusClass = 'bg-rose-500/10 text-rose-400 border-rose-500/15';
+
+                          return (
+                            <tr key={invoice.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.01] transition-colors">
+                              <td className="py-3.5 px-5 font-bold text-slate-800 dark:text-slate-200">{invoice.client_name}</td>
+                              <td className="py-3.5 px-5 text-slate-500">{project ? project.project_name : 'General billing'}</td>
+                              <td className="py-3.5 px-5 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                {invoice.currency === 'INR' ? '₹' : '$'}
+                                {parseFloat(invoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-3.5 px-5">
+                                <div className="relative inline-block">
+                                  <select
+                                    value={invoice.status}
+                                    onChange={(e) => handleUpdateInvoiceStatus(invoice.id, e.target.value)}
+                                    className={`appearance-none text-[10px] font-semibold border px-2.5 py-0.5 rounded-full outline-none cursor-pointer pr-5 font-mono ${statusClass}`}
+                                  >
+                                    <option value="Draft">Draft</option>
+                                    <option value="Sent">Sent</option>
+                                    <option value="Paid">Paid</option>
+                                    <option value="Overdue">Overdue</option>
+                                  </select>
+                                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                                </div>
+                              </td>
+                              <td className={`py-3.5 px-5 font-mono ${isOverdue ? 'text-rose-400 font-semibold' : 'text-slate-500'}`}>
+                                {invoice.due_date || '—'}
+                              </td>
+                              <td className="py-3.5 px-5 font-mono text-slate-500">{invoice.created_date || '—'}</td>
+                              <td className="py-3.5 px-5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInvoice(invoice.id)}
+                                  className="text-slate-500 hover:text-rose-400 p-1.5 rounded transition duration-150 inline-flex"
+                                  title="Delete Invoice"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile View List */}
+                  <div className="block md:hidden divide-y divide-slate-200 dark:divide-white/5">
+                    {invoices.map(invoice => {
+                      const project = projects.find(p => p.id === invoice.project_id);
+                      const isOverdue = invoice.status === 'Overdue' || (invoice.status !== 'Paid' && invoice.due_date && new Date(invoice.due_date) < new Date());
+
+                      let statusClass = 'bg-slate-500/10 text-slate-400 border-slate-500/15';
+                      if (invoice.status === 'Paid') statusClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25';
+                      else if (invoice.status === 'Sent') statusClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                      else if (isOverdue || invoice.status === 'Overdue') statusClass = 'bg-rose-500/10 text-rose-400 border-rose-500/15';
+
+                      return (
+                        <div key={invoice.id} className="p-4 space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{invoice.client_name}</h4>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{project ? project.project_name : 'General billing'}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInvoice(invoice.id)}
+                              className="text-slate-500 hover:text-rose-400 p-1 rounded transition duration-150"
+                              title="Delete Invoice"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-sm">
+                              {invoice.currency === 'INR' ? '₹' : '$'}
+                              {parseFloat(invoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <div className="relative">
+                              <select
+                                value={invoice.status}
+                                onChange={(e) => handleUpdateInvoiceStatus(invoice.id, e.target.value)}
+                                className={`appearance-none text-[10px] font-semibold border px-2.5 py-1 rounded-full outline-none cursor-pointer pr-5 font-mono ${statusClass}`}
+                              >
+                                <option value="Draft">Draft</option>
+                                <option value="Sent">Sent</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Overdue">Overdue</option>
+                              </select>
+                              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between text-[10px] pt-1.5 border-t border-slate-100 dark:border-white/5 text-slate-500 font-mono">
+                            <span>Issued: {invoice.created_date || '—'}</span>
+                            <span className={isOverdue ? 'text-rose-400 font-semibold' : ''}>
+                              Due: {invoice.due_date || '—'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
         )}
 
         {activeTab === 'analytics' && (
@@ -2030,6 +2321,187 @@ export default function App() {
                     className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl text-xs font-semibold hover:brightness-110 disabled:opacity-40"
                   >
                     Launch Project
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ADD INVOICE SLIDE DRAWER */}
+      <AnimatePresence>
+        {isAddInvoiceOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddInvoiceOpen(false)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+            {/* Form Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white dark:bg-[#0c0e12] border-l border-slate-200 dark:border-white/10 z-50 shadow-2xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <form onSubmit={handleAddInvoice} className="h-full flex flex-col justify-between">
+                <div>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-5 border-b border-white/5 mb-6">
+                    <div>
+                      <h2 className="font-extrabold text-xl text-slate-800 dark:text-slate-100">Add New Invoice</h2>
+                      <p className="text-xs text-slate-400">Issue an outreach billing statement</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddInvoiceOpen(false)}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition duration-150"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Client Name selection */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Client / Lead *</label>
+                      {leads.length === 0 ? (
+                        <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">
+                          No leads available. Please add a lead/client first.
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <select
+                            required
+                            value={newInvoiceForm.client_name}
+                            onChange={(e) => {
+                              setNewInvoiceForm({ 
+                                ...newInvoiceForm, 
+                                client_name: e.target.value,
+                                project_id: '' // Reset project link on client change
+                              });
+                            }}
+                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="" disabled>Select a Client...</option>
+                            {leads.map(lead => (
+                              <option key={lead.id} value={lead.business_name}>
+                                {lead.business_name}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Project Link selection (dynamically filtered by selected client) */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Link to Project (Optional)</label>
+                      {!newInvoiceForm.client_name ? (
+                        <div className="text-[10px] text-slate-450 italic bg-slate-100/50 dark:bg-white/[0.02] p-2.5 border border-slate-200 dark:border-white/5 rounded-xl">
+                          Please select a Client first to see active projects.
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <select
+                            value={newInvoiceForm.project_id}
+                            onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, project_id: e.target.value })}
+                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="">General (No project link)</option>
+                            {projects.filter(p => p.client_name === newInvoiceForm.client_name).map(project => (
+                              <option key={project.id} value={project.id}>
+                                {project.project_name} ({project.status})
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Amount & Currency */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Amount *</label>
+                        <input 
+                          type="number"
+                          required
+                          step="0.01"
+                          min="0"
+                          value={newInvoiceForm.amount}
+                          onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, amount: e.target.value })}
+                          placeholder="e.g. 1500.00"
+                          className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Currency</label>
+                        <div className="relative">
+                          <select
+                            value={newInvoiceForm.currency}
+                            onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, currency: e.target.value })}
+                            className="w-full appearance-none bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                          >
+                            <option value="USD">USD ($)</option>
+                            <option value="INR">INR (₹)</option>
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Initial Status */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Status</label>
+                      <div className="relative">
+                        <select
+                          value={newInvoiceForm.status}
+                          onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, status: e.target.value })}
+                          className="w-full appearance-none bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                        >
+                          <option value="Draft">Draft</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Overdue">Overdue</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Due Date */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Due Date</label>
+                      <input 
+                        type="date"
+                        value={newInvoiceForm.due_date}
+                        onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, due_date: e.target.value })}
+                        className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-white/5 flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddInvoiceOpen(false)}
+                    className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 py-3 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={leads.length === 0}
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl text-xs font-semibold hover:brightness-110 disabled:opacity-40"
+                  >
+                    Create Invoice
                   </button>
                 </div>
               </form>
