@@ -49,6 +49,21 @@ const Instagram = (props) => (
 
 import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  LabelList
+} from 'recharts';
 import seedLeadsData from './seedLeads.json';
 import { fetchLeadsFromSheets, syncAllLeadsToSheets } from './googleSheets';
 
@@ -88,6 +103,51 @@ const STATUS_OPTIONS = [
   'Closed Won',
   'Closed Lost'
 ];
+
+// --- RECHARTS CUSTOM COMPONENTS & TOOLTIPS ---
+const CustomRevenueTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900/95 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-md">
+        <p className="text-[10px] text-slate-500 font-mono">{label}</p>
+        <p className="text-sm font-bold text-emerald-400 mt-1">
+          ${payload[0].value.toLocaleString()}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomPieTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900/95 border border-white/10 p-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs">
+        <p className="font-semibold text-slate-200">{payload[0].name}</p>
+        <p className="font-mono text-indigo-400 mt-1">
+          {payload[0].value} leads ({Math.round(payload[0].payload.percentage)}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomBarTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900/95 border border-white/10 p-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs">
+        <p className="font-semibold text-slate-200">{payload[0].name}</p>
+        <p className="font-mono text-indigo-400 mt-1">
+          {payload[0].value} leads ({payload[0].payload.percentage}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const COLORS = ['#5f5af6', '#9d4edd', '#ec4899', '#f43f5e', '#64748b'];
 
 export default function App() {
   // --- STATE ---
@@ -894,7 +954,7 @@ export default function App() {
           >
             {/* 1. Summary Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
                   <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
@@ -905,7 +965,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider">Pending Follow-ups</span>
                   <Calendar className="w-4.5 h-4.5 text-rose-400" />
@@ -916,7 +976,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider">Active Funnel</span>
                   <Users className="w-4.5 h-4.5 text-indigo-400" />
@@ -927,7 +987,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider">Est. Closed Revenue</span>
                   <TrendingUp className="w-4.5 h-4.5 text-purple-400" />
@@ -953,112 +1013,163 @@ export default function App() {
 
             {/* 2. Analytical Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Client Status Breakdown */}
-              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6">
+              
+              {/* Funnel Breakdown (Recharts Horizontal Bar Chart) */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 shadow-lg shadow-black/10">
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
                   <Users className="w-4.5 h-4.5 text-indigo-400" />
                   Client Funnel Status Breakdown
                 </h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Prospecting / Leads</span>
-                      <span className="font-semibold text-slate-200">{analyticsData.leadCount} ({leads.length > 0 ? Math.round((analyticsData.leadCount / leads.length) * 100) : 0}%)</span>
-                    </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.leadCount / leads.length) * 100 : 0}%` }}></div>
-                    </div>
+                {leads.length === 0 ? (
+                  <div className="h-60 flex flex-col items-center justify-center text-center border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                    <AlertCircle className="w-8 h-8 text-slate-600 mb-2" />
+                    <span className="text-xs text-slate-500 font-mono">No Funnel Data Yet</span>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Active Contacts (Replied / Interested)</span>
-                      <span className="font-semibold text-slate-200">{analyticsData.activeCount} ({leads.length > 0 ? Math.round((analyticsData.activeCount / leads.length) * 100) : 0}%)</span>
-                    </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.activeCount / leads.length) * 100 : 0}%` }}></div>
-                    </div>
+                ) : (
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[
+                          { name: 'Leads', value: analyticsData.leadCount, percentage: leads.length > 0 ? Math.round((analyticsData.leadCount / leads.length) * 100) : 0, fill: '#5f5af6' },
+                          { name: 'Active', value: analyticsData.activeCount, percentage: leads.length > 0 ? Math.round((analyticsData.activeCount / leads.length) * 100) : 0, fill: '#9d4edd' },
+                          { name: 'Closed', value: analyticsData.closedCount, percentage: leads.length > 0 ? Math.round((analyticsData.closedCount / leads.length) * 100) : 0, fill: '#10b981' }
+                        ]}
+                        layout="vertical"
+                        margin={{ top: 10, right: 50, left: -20, bottom: 5 }}
+                      >
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} width={80} />
+                        <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                        <Bar 
+                          dataKey="value" 
+                          radius={[0, 6, 6, 0]} 
+                          barSize={16}
+                          label={(props) => {
+                            const { x, y, width, value, index } = props;
+                            const percentages = [
+                              leads.length > 0 ? Math.round((analyticsData.leadCount / leads.length) * 100) : 0,
+                              leads.length > 0 ? Math.round((analyticsData.activeCount / leads.length) * 100) : 0,
+                              leads.length > 0 ? Math.round((analyticsData.closedCount / leads.length) * 100) : 0
+                            ];
+                            return (
+                              <text x={x + width + 8} y={y + 12} fill="#cbd5e1" fontSize={10} fontFamily="monospace" textAnchor="start">
+                                {value} ({percentages[index]}%)
+                              </text>
+                            );
+                          }}
+                        >
+                          <Cell fill="#5f5af6" />
+                          <Cell fill="#9d4edd" />
+                          <Cell fill="#10b981" />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Closed Deals (Won / Lost / Not Interested)</span>
-                      <span className="font-semibold text-slate-200">{analyticsData.closedCount} ({leads.length > 0 ? Math.round((analyticsData.closedCount / leads.length) * 100) : 0}%)</span>
-                    </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.closedCount / leads.length) * 100 : 0}%` }}></div>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Lead Source Breakdown */}
-              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6">
+              {/* Lead Source Distribution (Recharts Donut Chart) */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 shadow-lg shadow-black/10">
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
                   <Globe className="w-4.5 h-4.5 text-purple-400" />
                   Lead Source Distribution
                 </h3>
-                <div className="space-y-3.5">
-                  {analyticsData.sourceList.map((src, i) => (
-                    <div key={src.name}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-400">{src.name}</span>
-                        <span className="font-semibold text-slate-200">{src.count} ({src.percentage}%)</span>
-                      </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            i === 0 ? 'bg-indigo-500' :
-                            i === 1 ? 'bg-purple-500' :
-                            i === 2 ? 'bg-pink-500' :
-                            i === 3 ? 'bg-blue-500' : 'bg-slate-600'
-                          }`}
-                          style={{ width: `${src.percentage}%` }}
-                        ></div>
+                {leads.length === 0 ? (
+                  <div className="h-60 flex flex-col items-center justify-center text-center border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                    <AlertCircle className="w-8 h-8 text-slate-600 mb-2" />
+                    <span className="text-xs text-slate-500 font-mono">No Source Data Yet</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-6 h-60">
+                    <div className="relative h-44 w-44 flex-shrink-0 flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={analyticsData.sourceList.map(src => ({
+                              name: src.name,
+                              value: src.count,
+                              percentage: src.percentage
+                            })).filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={75}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {analyticsData.sourceList.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.3)" strokeWidth={1} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomPieTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      
+                      {/* Total Leads Center Label */}
+                      <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                        <span className="text-2xl font-black text-slate-100 tracking-tight">{leads.length}</span>
+                        <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">Total Leads</span>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="flex-1 space-y-2 w-full max-w-[200px] sm:max-w-none">
+                      {analyticsData.sourceList.map((src, index) => (
+                        <div key={src.name} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                            <span className="text-slate-400 truncate">{src.name}</span>
+                          </div>
+                          <span className="font-semibold text-slate-300 font-mono flex-shrink-0 ml-2">{src.count} ({src.percentage}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Monthly Revenue Trend Bar Chart */}
-              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 lg:col-span-2">
+              {/* Monthly Revenue Trend (Recharts Area/Line Chart) */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 shadow-lg shadow-black/10 lg:col-span-2">
                 <h3 className="text-sm font-bold text-slate-200 mb-6 flex items-center gap-2">
                   <TrendingUp className="w-4.5 h-4.5 text-emerald-400" />
                   Monthly Closed Won Revenue Trend
                 </h3>
                 {analyticsData.revenueTrend.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-xs font-mono">
-                    No closed won deals recorded yet to display monthly trend.
+                  <div className="h-60 flex flex-col items-center justify-center text-center border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                    <AlertCircle className="w-8 h-8 text-slate-600 mb-2" />
+                    <span className="text-xs text-slate-500 font-mono">No Revenue Trend Data Yet (Need Won Leads)</span>
                   </div>
                 ) : (
-                  <div className="flex items-end justify-around gap-2 h-48 pt-4 border-b border-white/5">
-                    {analyticsData.revenueTrend.map(trend => {
-                      const maxAmount = Math.max(...analyticsData.revenueTrend.map(t => t.amount)) || 1;
-                      const heightPct = Math.max(10, Math.round((trend.amount / maxAmount) * 100));
-                      return (
-                        <div key={trend.key} className="flex flex-col items-center group relative flex-1 max-w-[80px]">
-                          <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-white/10 text-[10px] font-mono py-1 px-2 rounded shadow-2xl text-emerald-400 whitespace-nowrap z-10 pointer-events-none">
-                            ${trend.amount.toLocaleString()}
-                          </div>
-                          
-                          <div 
-                            className="w-full bg-gradient-to-t from-indigo-600/70 to-purple-600/90 rounded-t-lg group-hover:brightness-125 transition-all shadow-lg hover:shadow-indigo-500/20"
-                            style={{ height: `${heightPct}%` }}
-                          ></div>
-                          
-                          <span className="text-[10px] text-slate-500 font-mono mt-2 text-center truncate w-full">
-                            {trend.label}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={analyticsData.revenueTrend} margin={{ top: 15, right: 15, left: -15, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#5f5af6" stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor="#5f5af6" stopOpacity={0.0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                        <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} />
+                        <Tooltip content={<CustomRevenueTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="amount"
+                          stroke="#5f5af6"
+                          strokeWidth={2}
+                          fillOpacity={1}
+                          fill="url(#colorRevenue)"
+                          activeDot={{ r: 5, stroke: '#5f5af6', strokeWidth: 2, fill: '#06070a' }}
+                          dot={{ r: 3, stroke: '#5f5af6', strokeWidth: 2, fill: '#101217' }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 )}
               </div>
 
-              {/* Overdue/Pending Follow-ups List */}
-              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 lg:col-span-2">
+              {/* Pending Follow-ups */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 shadow-lg shadow-black/10 lg:col-span-2">
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Calendar className="w-4.5 h-4.5 text-rose-400" />
@@ -1070,8 +1181,9 @@ export default function App() {
                 </h3>
 
                 {analyticsData.pendingFollowUps.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-xs font-mono">
-                    No follow-ups pending today! Everything is up to date.
+                  <div className="h-44 flex flex-col items-center justify-center text-center border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500/80 mb-2" />
+                    <span className="text-xs text-slate-500 font-mono">No follow-ups pending today! Everything is up to date.</span>
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5 max-h-72 overflow-y-auto pr-2">
@@ -1095,7 +1207,7 @@ export default function App() {
                           <button 
                             type="button"
                             onClick={() => setSelectedLead(lead)}
-                            className="text-[10px] text-indigo-400 hover:text-white font-semibold py-1 px-2.5 rounded border border-indigo-500/20 hover:bg-indigo-500/10 transition"
+                            className="text-[10px] text-indigo-400 hover:text-white font-semibold py-1 px-2.5 rounded border border-indigo-500/20 hover:bg-indigo-500/10 transition cursor-pointer"
                           >
                             View
                           </button>
