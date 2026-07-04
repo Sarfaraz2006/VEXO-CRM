@@ -1579,21 +1579,21 @@ export default function App() {
             className="space-y-6"
           >
             {/* 1. Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Clients</span>
                   <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
                 </div>
                 <div>
-                  <span className="text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-800 dark:text-slate-100">{analyticsData.totalClients}</span>
+                  <span className="text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-100">{analyticsData.totalClients}</span>
                   <p className="text-[10px] text-slate-400 mt-1 font-mono">Active & Won profiles</p>
                 </div>
               </div>
 
               <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Pending Follow-ups</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pending Follow-ups</span>
                   <Calendar className="w-4.5 h-4.5 text-rose-400" />
                 </div>
                 <div>
@@ -1604,18 +1604,18 @@ export default function App() {
 
               <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Active Funnel</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Funnel</span>
                   <Users className="w-4.5 h-4.5 text-indigo-400" />
                 </div>
                 <div>
-                  <span className="text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-800 dark:text-slate-100">{analyticsData.leadCount + analyticsData.activeCount}</span>
+                  <span className="text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-100">{analyticsData.leadCount + analyticsData.activeCount}</span>
                   <p className="text-[10px] text-slate-400 mt-1 font-mono">In prospecting funnel</p>
                 </div>
               </div>
 
               <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Est. Closed Revenue</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Est. Closed Revenue</span>
                   <TrendingUp className="w-4.5 h-4.5 text-purple-400" />
                 </div>
                 <div>
@@ -1633,6 +1633,36 @@ export default function App() {
                     }, 0)).toLocaleString()}
                   </span>
                   <p className="text-[10px] text-slate-400 mt-1 font-mono">Won deals value summary</p>
+                </div>
+              </div>
+
+              {/* Card 5: Active Projects */}
+              <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Projects</span>
+                  <Building2 className="w-4.5 h-4.5 text-indigo-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-slate-800 dark:text-slate-100">
+                    {projects.filter(p => p.status !== 'Delivered').length}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                    {projects.filter(p => p.status === 'In Progress').length} in active status
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 6: Outstanding Invoices */}
+              <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Outstanding Invoices</span>
+                  <DollarSign className="w-4.5 h-4.5 text-rose-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-rose-400">
+                    ${invoiceStats.outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Unpaid billing totals</p>
                 </div>
               </div>
             </div>
