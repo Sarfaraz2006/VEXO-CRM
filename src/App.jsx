@@ -603,45 +603,49 @@ export default function App() {
       </AnimatePresence>
 
       {/* HEADER BAR */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#06070a]/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 py-4 px-4 md:px-8 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Building2 className="w-5 h-5 text-white" />
+      <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#06070a]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/5 py-4 px-4 md:px-8 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* Logo & Navigation Tabs */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between md:justify-start gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0">
+                <Building2 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-800 to-slate-500 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">VEXO TEAMX CRM</h1>
+                <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-800 to-slate-500 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">VEXO TEAMX CRM</h1>
-              <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker</p>
+
+            {/* Navigation Tabs */}
+            <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-1 rounded-xl text-xs font-medium w-full sm:w-auto justify-center">
+              <button
+                onClick={() => setActiveTab('leads')}
+                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                  activeTab === 'leads' 
+                    ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Leads
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                  activeTab === 'analytics' 
+                    ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Analytics
+              </button>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center bg-white/5 border border-white/5 p-1 rounded-xl text-xs font-medium">
-            <button
-              onClick={() => setActiveTab('leads')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'leads' 
-                  ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Leads
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'analytics' 
-                  ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Analytics
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
+          {/* Right Action buttons */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full md:w-auto">
             {/* Sync Indicator */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-[11px] text-slate-400 font-mono">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
               <span className={`w-2 h-2 rounded-full ${syncConfig.mode === 'sheets' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></span>
               {syncConfig.mode === 'sheets' ? 'Sheets Connected' : 'Local Sandbox'}
             </div>
@@ -650,7 +654,7 @@ export default function App() {
               <button 
                 onClick={() => syncWithGoogleSheets()}
                 disabled={syncing}
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 hover:text-white hover:bg-white/10 transition duration-150 disabled:opacity-40"
+                className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition duration-150 disabled:opacity-40"
                 title="Sync now"
               >
                 <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
@@ -675,7 +679,7 @@ export default function App() {
 
             <button 
               onClick={() => setIsAddLeadOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold rounded-xl hover:brightness-110 shadow-lg shadow-indigo-500/10 transition active:scale-95"
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold rounded-xl hover:brightness-110 shadow-lg shadow-indigo-500/10 transition active:scale-95 cursor-pointer flex-1 sm:flex-initial"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Lead</span>
@@ -689,7 +693,7 @@ export default function App() {
           <>
 
         {/* STATS ROW */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Card 1: Total Leads */}
           <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200">
             <div className="flex items-center justify-between text-slate-500 mb-3">
@@ -934,7 +938,7 @@ export default function App() {
           </div>
 
           {/* Mobile Card List View */}
-          <div className="block lg:hidden divide-y divide-white/5">
+          <div className="block lg:hidden divide-y divide-slate-200 dark:divide-white/5">
             {filteredLeads.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-sm font-medium">
                 No leads match your search criteria.
@@ -944,12 +948,12 @@ export default function App() {
                 <div 
                   key={lead.id} 
                   onClick={() => setSelectedLead(lead)}
-                  className="p-4 hover:bg-white/[0.01] active:bg-white/[0.02] cursor-pointer"
+                  className="p-4.5 hover:bg-slate-50 dark:hover:bg-white/[0.01] active:bg-slate-100 dark:active:bg-white/[0.02] transition-colors cursor-pointer select-none"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div>
-                      <h4 className="font-extrabold text-slate-200">{lead.business_name}</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5 capitalize">{lead.category} • {lead.phone}</p>
+                      <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">{lead.business_name}</h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 capitalize font-medium">{lead.category} • {lead.phone}</p>
                     </div>
                     <span className={`text-[9px] font-bold border px-1.5 py-0.5 rounded-md flex items-center gap-1 ${PRIORITY_STYLES[lead.priority]?.bg || ''}`}>
                       {lead.priority}
@@ -960,7 +964,7 @@ export default function App() {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.outreach_status] || ''}`}>
                       {lead.outreach_status}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-medium">
                       Last Contact: {lead.last_contacted || '—'}
                     </span>
                   </div>
@@ -980,7 +984,7 @@ export default function App() {
             className="space-y-6"
           >
             {/* 1. Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-[#101217] glow-card border border-slate-200 dark:border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors duration-200 shadow-lg shadow-black/10">
                 <div className="flex items-center justify-between text-slate-500 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
@@ -1039,7 +1043,7 @@ export default function App() {
             </div>
 
             {/* 2. Analytical Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Funnel Breakdown (Recharts Horizontal Bar Chart) */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200">
