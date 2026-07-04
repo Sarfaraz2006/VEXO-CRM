@@ -28,7 +28,8 @@ import {
   Sun,
   Moon,
   FileText,
-  DollarSign
+  DollarSign,
+  Share2
 } from 'lucide-react';
 
 // Custom inline brand icon for Instagram since Lucide-react deprecated brand icons
@@ -681,6 +682,33 @@ export default function App() {
     if (window.confirm("Kya aap is invoice ko delete karna chahte hain?")) {
       setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
       showToast('🗑️ Invoice deleted!');
+    }
+  };
+
+  const handleShareInvoice = (invoice) => {
+    const project = projects.find(p => p.id === invoice.project_id);
+    const amountStr = `${invoice.currency === 'INR' ? '₹' : '$'}${parseFloat(invoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const shareText = `*Invoice from Vexo TeamX*\n\n` +
+      `👤 *Client:* ${invoice.client_name}\n` +
+      `📋 *Project:* ${project ? project.project_name : 'General billing'}\n` +
+      `💰 *Amount:* ${amountStr}\n` +
+      `📅 *Due Date:* ${invoice.due_date || '—'}\n` +
+      `🏷️ *Status:* ${invoice.status}\n\n` +
+      `Please settle the payment. Thank you!`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Invoice - ${invoice.client_name}`,
+        text: shareText,
+      }).catch(err => {
+        console.error(err);
+        // Fallback to clipboard
+        navigator.clipboard.writeText(shareText);
+        showToast('📋 Invoice details copied to clipboard!');
+      });
+    } else {
+      navigator.clipboard.writeText(shareText);
+      showToast('📋 Invoice details copied to clipboard!');
     }
   };
 
@@ -1436,11 +1464,19 @@ export default function App() {
                                 {invoice.due_date || '—'}
                               </td>
                               <td className="py-3.5 px-5 font-mono text-slate-500">{invoice.created_date || '—'}</td>
-                              <td className="py-3.5 px-5 text-right">
+                              <td className="py-3.5 px-5 text-right flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareInvoice(invoice)}
+                                  className="text-slate-500 hover:text-indigo-400 p-1.5 rounded transition duration-150 inline-flex"
+                                  title="Share Invoice"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteInvoice(invoice.id)}
-                                  className="text-slate-500 hover:text-rose-400 p-1.5 rounded transition duration-150 inline-flex"
+                                  className="text-slate-500 hover:text-rose-450 p-1.5 rounded transition duration-150 inline-flex"
                                   title="Delete Invoice"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1471,14 +1507,24 @@ export default function App() {
                               <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{invoice.client_name}</h4>
                               <p className="text-[10px] text-slate-500 mt-0.5">{project ? project.project_name : 'General billing'}</p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteInvoice(invoice.id)}
-                              className="text-slate-500 hover:text-rose-400 p-1 rounded transition duration-150"
-                              title="Delete Invoice"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleShareInvoice(invoice)}
+                                className="text-slate-500 hover:text-indigo-400 p-1 rounded transition duration-150"
+                                title="Share Invoice"
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInvoice(invoice.id)}
+                                className="text-slate-500 hover:text-rose-400 p-1 rounded transition duration-150"
+                                title="Delete Invoice"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           <div className="flex justify-between items-center text-xs">
