@@ -688,13 +688,20 @@ export default function App() {
   const handleShareInvoice = (invoice) => {
     const project = projects.find(p => p.id === invoice.project_id);
     const amountStr = `${invoice.currency === 'INR' ? '₹' : '$'}${parseFloat(invoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    const shareText = `*Invoice from Vexo TeamX*\n\n` +
+    const shareText = 
+      `🌐 *VEXO TEAMX — OFFICIAL INVOICE*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Hello,\n\n` +
+      `A new billing statement has been generated for your account. Please find the transaction details below:\n\n` +
       `👤 *Client:* ${invoice.client_name}\n` +
-      `📋 *Project:* ${project ? project.project_name : 'General billing'}\n` +
+      `📋 *Project:* ${project ? project.project_name : 'General Client Outreach'}\n` +
       `💰 *Amount:* ${amountStr}\n` +
-      `📅 *Due Date:* ${invoice.due_date || '—'}\n` +
+      `📅 *Due Date:* ${invoice.due_date || 'Immediate'}\n` +
       `🏷️ *Status:* ${invoice.status}\n\n` +
-      `Please settle the payment. Thank you!`;
+      `Please process this payment by the due date. For any support or inquiries, reply directly to this outreach.\n\n` +
+      `Thank you for partnering with Vexo TeamX!\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `*Vexo TeamX Lead Tracker • Founder: Sarfaraz*`;
 
     if (navigator.share) {
       navigator.share({
