@@ -423,7 +423,7 @@ export default function App() {
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">AURA CRM</h1>
+              <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">VEXO TEAMX CRM</h1>
               <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker</p>
             </div>
           </div>
@@ -1143,7 +1143,7 @@ export default function App() {
               <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-5">
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-indigo-400" />
-                  <h2 className="font-extrabold text-lg text-slate-100">CRM Engine Config</h2>
+                  <h2 className="font-extrabold text-lg text-slate-100">Vexo TeamX CRM Engine Config</h2>
                 </div>
                 <button 
                   onClick={() => setIsSettingsOpen(false)}
@@ -1254,7 +1254,7 @@ export default function App() {
                     className="w-full bg-white/5 border border-white/5 text-slate-300 hover:text-white py-2 px-4 rounded-xl text-xs font-semibold hover:bg-white/10 flex items-center justify-center gap-2"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    Download CRM Data as CSV (.csv)
+                    Download Vexo TeamX CRM Data as CSV (.csv)
                   </button>
                 </div>
 
