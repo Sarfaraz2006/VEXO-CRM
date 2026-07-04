@@ -69,6 +69,20 @@ async def main():
                 await p.click('button:has-text("Analytics")')
             await capture_state(page, "analytics", open_analytics)
             
+            # Go back to Leads Tab
+            await page.click('button:has-text("Leads")')
+            await asyncio.sleep(0.5)
+            
+            # 6. Click Theme toggle to switch to Light Mode
+            async def switch_theme(p):
+                await p.click('button[title*="Light Mode"]')
+            await capture_state(page, "dashboard_light", switch_theme)
+            
+            # 7. Open Analytics Tab in Light Mode
+            async def open_analytics_light(p):
+                await p.click('button:has-text("Analytics")')
+            await capture_state(page, "analytics_light", open_analytics_light)
+            
             print("All screenshots taken successfully!")
             
         except Exception as e:
