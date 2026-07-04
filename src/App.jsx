@@ -585,6 +585,15 @@ export default function App() {
     link.remove();
   };
 
+  const handleResetToDefault = () => {
+    if (window.confirm("Kya aap sach mein CRM data ko reset karke original clean CSV data se restore karna chahte hain? Sabhi changes lost ho jayenge.")) {
+      localStorage.removeItem('leads_crm_data');
+      setLeads(seedLeadsData);
+      showToast('🔄 CRM data reset to default clean CSV values!');
+      setIsSettingsOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#06070a] text-slate-900 dark:text-slate-800 dark:text-slate-100 pb-12 antialiased transition-colors duration-200">
       {/* Toast Notification */}
@@ -1791,7 +1800,7 @@ export default function App() {
                 )}
 
                 {/* CSV export utilities */}
-                <div className="pt-3 border-t border-white/5">
+                <div className="pt-3 border-t border-white/5 space-y-2">
                   <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Backup Tools</label>
                   <button 
                     type="button"
@@ -1800,6 +1809,14 @@ export default function App() {
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download Vexo TeamX CRM Data as CSV (.csv)
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleResetToDefault}
+                    className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 py-2 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Reset to Default Clean CSV Data
                   </button>
                 </div>
 
