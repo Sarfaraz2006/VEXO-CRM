@@ -57,9 +57,17 @@ async def main():
             
             # 4. Open Settings Modal
             async def open_settings(p):
-                # Click settings button (using icon or title)
                 await p.click('button[title="Settings"]')
             await capture_state(page, "settings", open_settings)
+            
+            # Close settings
+            await page.click('button:has-text("Cancel")')
+            await asyncio.sleep(0.5)
+            
+            # 5. Open Analytics Tab
+            async def open_analytics(p):
+                await p.click('button:has-text("Analytics")')
+            await capture_state(page, "analytics", open_analytics)
             
             print("All screenshots taken successfully!")
             

@@ -122,6 +122,7 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [sortBy, setSortBy] = useState('business_name'); // 'business_name', 'priority', 'last_contacted'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+  const [activeTab, setActiveTab] = useState('leads'); // 'leads' or 'analytics'
 
   const [selectedLead, setSelectedLead] = useState(null);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
@@ -267,6 +268,113 @@ export default function App() {
         return 0;
       });
   }, [leads, searchTerm, filterPriority, filterStatus, filterCategory, sortBy, sortOrder]);
+
+  // --- ANALYTICS COMPUTATIONS ---
+  const analyticsData = useMemo(() => {
+    let leadCount = 0;
+    let activeCount = 0;
+    let closedCount = 0;
+
+    leads.forEach(l => {
+      const status = l.outreach_status;
+      if (['Not Contacted', 'Messaged'].includes(status)) {
+        leadCount++;
+      } else if (['Replied', 'Interested'].includes(status)) {
+        activeCount++;
+      } else if (['Closed Won', 'Closed Lost', 'Not Interested'].includes(status)) {
+        closedCount++;
+      }
+    });
+
+    const monthlyRevenue = {};
+    leads.forEach(l => {
+      if (l.outreach_status === 'Closed Won') {
+        let revenue = 2500; // Default estimate
+        
+        // Try to extract budget from notes
+        const notesMatch = (l.notes || '').match(/\$([0-9,]+)/);
+        if (notesMatch) {
+          const parsed = parseFloat(notesMatch[1].replace(/,/g, ''));
+          if (!isNaN(parsed)) {
+            revenue = parsed;
+          }
+        }
+
+        let monthKey = '2026-07';
+        if (l.last_contacted && l.last_contacted.includes('-')) {
+          const parts = l.last_contacted.split('-');
+          if (parts.length >= 2) {
+            monthKey = `${parts[0]}-${parts[1]}`;
+          }
+        }
+        
+        monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + revenue;
+      }
+    });
+
+    const monthsSorted = Object.keys(monthlyRevenue).sort();
+    const revenueTrend = monthsSorted.map(m => {
+      const [year, month] = m.split('-');
+      const monthNames = {
+        '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
+        '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
+        '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+      };
+      return {
+        key: m,
+        label: `${monthNames[month] || month} ${year}`,
+        amount: monthlyRevenue[m]
+      };
+    });
+
+    const todayStr = '2026-07-04';
+    const pendingFollowUps = leads.filter(l => {
+      const isNotClosed = !['Closed Won', 'Closed Lost', 'Not Interested'].includes(l.outreach_status);
+      const hasFollowUp = !!l.follow_up_date;
+      const isOverdue = l.follow_up_date <= todayStr;
+      return isNotClosed && hasFollowUp && isOverdue;
+    });
+
+    const sources = {
+      'Instagram DM': 0,
+      'Apollo Export': 0,
+      'Referral': 0,
+      'Cold Email': 0,
+      'Google Maps / Cold Call': 0
+    };
+
+    leads.forEach(l => {
+      const notes = (l.notes || '').toLowerCase();
+      if (l.instagram_handle) {
+        sources['Instagram DM']++;
+      } else if (notes.includes('apollo')) {
+        sources['Apollo Export']++;
+      } else if (notes.includes('referral') || notes.includes('referred')) {
+        sources['Referral']++;
+      } else if (notes.includes('email') || notes.includes('cold email')) {
+        sources['Cold Email']++;
+      } else {
+        sources['Google Maps / Cold Call']++;
+      }
+    });
+
+    const sourceList = Object.keys(sources).map(name => ({
+      name,
+      count: sources[name],
+      percentage: leads.length > 0 ? Math.round((sources[name] / leads.length) * 100) : 0
+    })).sort((a, b) => b.count - a.count);
+
+    return {
+      totalClients: activeCount + leads.filter(l => l.outreach_status === 'Closed Won').length,
+      leadCount,
+      activeCount,
+      closedCount,
+      revenueTrend,
+      pendingFollowUpCount: pendingFollowUps.length,
+      pendingFollowUps,
+      sourceList
+    };
+  }, [leads]);
 
   // --- HANDLERS ---
   const handleAddLead = (e) => {
@@ -428,6 +536,30 @@ export default function App() {
             </div>
           </div>
 
+          {/* Navigation Tabs */}
+          <div className="flex items-center bg-white/5 border border-white/5 p-1 rounded-xl text-xs font-medium">
+            <button
+              onClick={() => setActiveTab('leads')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'leads' 
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Leads
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'analytics' 
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Analytics
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             {/* Sync Indicator */}
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-[11px] text-slate-400 font-mono">
@@ -466,6 +598,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
+        {activeTab === 'leads' ? (
+          <>
+
         {/* STATS ROW */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Card 1: Total Leads */}
@@ -747,6 +882,232 @@ export default function App() {
             )}
           </div>
         </section>
+
+          </>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            {/* 1. Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
+                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-slate-100">{analyticsData.totalClients}</span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Active & Won profiles</p>
+                </div>
+              </div>
+
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Pending Follow-ups</span>
+                  <Calendar className="w-4.5 h-4.5 text-rose-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-rose-400">{analyticsData.pendingFollowUpCount}</span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Requires attention</p>
+                </div>
+              </div>
+
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Active Funnel</span>
+                  <Users className="w-4.5 h-4.5 text-indigo-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-slate-100">{analyticsData.leadCount + analyticsData.activeCount}</span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">In prospecting funnel</p>
+                </div>
+              </div>
+
+              <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-slate-500 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Est. Closed Revenue</span>
+                  <TrendingUp className="w-4.5 h-4.5 text-purple-400" />
+                </div>
+                <div>
+                  <span className="text-2xl md:text-3xl font-extrabold text-emerald-400">
+                    ${(leads.filter(l => l.outreach_status === 'Closed Won').reduce((acc, curr) => {
+                      let val = 2500;
+                      const match = (curr.notes || '').match(/\$([0-9,]+)/);
+                      if (match) {
+                        try {
+                          const parsed = parseFloat(match[1].replace(/,/g, ''));
+                          if (!isNaN(parsed)) val = parsed;
+                        } catch (e) {}
+                      }
+                      return acc + val;
+                    }, 0)).toLocaleString()}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono">Won deals value summary</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Analytical Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Client Status Breakdown */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6">
+                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                  <Users className="w-4.5 h-4.5 text-indigo-400" />
+                  Client Funnel Status Breakdown
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Prospecting / Leads</span>
+                      <span className="font-semibold text-slate-200">{analyticsData.leadCount} ({leads.length > 0 ? Math.round((analyticsData.leadCount / leads.length) * 100) : 0}%)</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.leadCount / leads.length) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Active Contacts (Replied / Interested)</span>
+                      <span className="font-semibold text-slate-200">{analyticsData.activeCount} ({leads.length > 0 ? Math.round((analyticsData.activeCount / leads.length) * 100) : 0}%)</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.activeCount / leads.length) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Closed Deals (Won / Lost / Not Interested)</span>
+                      <span className="font-semibold text-slate-200">{analyticsData.closedCount} ({leads.length > 0 ? Math.round((analyticsData.closedCount / leads.length) * 100) : 0}%)</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${leads.length > 0 ? (analyticsData.closedCount / leads.length) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lead Source Breakdown */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6">
+                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                  <Globe className="w-4.5 h-4.5 text-purple-400" />
+                  Lead Source Distribution
+                </h3>
+                <div className="space-y-3.5">
+                  {analyticsData.sourceList.map((src, i) => (
+                    <div key={src.name}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-slate-400">{src.name}</span>
+                        <span className="font-semibold text-slate-200">{src.count} ({src.percentage}%)</span>
+                      </div>
+                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full ${
+                            i === 0 ? 'bg-indigo-500' :
+                            i === 1 ? 'bg-purple-500' :
+                            i === 2 ? 'bg-pink-500' :
+                            i === 3 ? 'bg-blue-500' : 'bg-slate-600'
+                          }`}
+                          style={{ width: `${src.percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Monthly Revenue Trend Bar Chart */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 lg:col-span-2">
+                <h3 className="text-sm font-bold text-slate-200 mb-6 flex items-center gap-2">
+                  <TrendingUp className="w-4.5 h-4.5 text-emerald-400" />
+                  Monthly Closed Won Revenue Trend
+                </h3>
+                {analyticsData.revenueTrend.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500 text-xs font-mono">
+                    No closed won deals recorded yet to display monthly trend.
+                  </div>
+                ) : (
+                  <div className="flex items-end justify-around gap-2 h-48 pt-4 border-b border-white/5">
+                    {analyticsData.revenueTrend.map(trend => {
+                      const maxAmount = Math.max(...analyticsData.revenueTrend.map(t => t.amount)) || 1;
+                      const heightPct = Math.max(10, Math.round((trend.amount / maxAmount) * 100));
+                      return (
+                        <div key={trend.key} className="flex flex-col items-center group relative flex-1 max-w-[80px]">
+                          <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-white/10 text-[10px] font-mono py-1 px-2 rounded shadow-2xl text-emerald-400 whitespace-nowrap z-10 pointer-events-none">
+                            ${trend.amount.toLocaleString()}
+                          </div>
+                          
+                          <div 
+                            className="w-full bg-gradient-to-t from-indigo-600/70 to-purple-600/90 rounded-t-lg group-hover:brightness-125 transition-all shadow-lg hover:shadow-indigo-500/20"
+                            style={{ height: `${heightPct}%` }}
+                          ></div>
+                          
+                          <span className="text-[10px] text-slate-500 font-mono mt-2 text-center truncate w-full">
+                            {trend.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Overdue/Pending Follow-ups List */}
+              <div className="bg-[#101217] border border-white/5 rounded-2xl p-5 md:p-6 lg:col-span-2">
+                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-4.5 h-4.5 text-rose-400" />
+                    Overdue & Today's Follow-ups
+                  </span>
+                  <span className="text-xs bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-semibold font-mono">
+                    {analyticsData.pendingFollowUpCount} Pending
+                  </span>
+                </h3>
+
+                {analyticsData.pendingFollowUps.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500 text-xs font-mono">
+                    No follow-ups pending today! Everything is up to date.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/5 max-h-72 overflow-y-auto pr-2">
+                    {analyticsData.pendingFollowUps.map(lead => (
+                      <div key={lead.id} className="py-3 flex items-center justify-between gap-4 group">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-200 truncate">{lead.business_name}</h4>
+                            <span className="text-[9px] bg-slate-900 border border-white/5 px-2 py-0.5 rounded text-slate-400 font-medium capitalize flex-shrink-0">
+                              {lead.category}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 truncate mt-1">
+                            {lead.notes || 'No notes added'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-rose-400 font-mono bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded flex-shrink-0">
+                            {lead.follow_up_date}
+                          </span>
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedLead(lead)}
+                            className="text-[10px] text-indigo-400 hover:text-white font-semibold py-1 px-2.5 rounded border border-indigo-500/20 hover:bg-indigo-500/10 transition"
+                          >
+                            View
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
       </main>
 
       {/* LEAD DETAIL SLIDE DRAWER */}
