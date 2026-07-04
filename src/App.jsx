@@ -613,7 +613,7 @@ export default function App() {
               </div>
               <div>
                 <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-800 to-slate-500 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">VEXO TEAMX CRM</h1>
-                <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker</p>
+                <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker • Founder: Sarfaraz</p>
               </div>
             </div>
 
@@ -1253,6 +1253,13 @@ export default function App() {
         )}
       </main>
 
+      {/* FOOTER BRANDING */}
+      <footer className="max-w-7xl mx-auto px-4 md:px-8 mt-12 pb-8 text-center border-t border-slate-200 dark:border-white/5 pt-6 transition-colors duration-200">
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          © 2026 Vexo TeamX. All rights reserved. Built & owned by Sarfaraz.
+        </p>
+      </footer>
+
       {/* LEAD DETAIL SLIDE DRAWER */}
       <AnimatePresence>
         {selectedLead && (
@@ -1762,7 +1769,30 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="pt-4 border-t border-white/5 flex gap-2">
+                {/* About & Ownership Section */}
+                <div className="pt-3 border-t border-slate-200 dark:border-white/5 space-y-2">
+                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">About CRM</label>
+                  <div className="bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs space-y-1.5 text-slate-600 dark:text-slate-400">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500 dark:text-slate-500">CRM Name</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">Vexo TeamX CRM</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500 dark:text-slate-500">Owner/Founder</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">Sarfaraz</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500 dark:text-slate-500">Company</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">Vexo TeamX</span>
+                    </div>
+                    <div className="flex flex-col pt-1 border-t border-slate-200 dark:border-white/5 mt-1 gap-0.5">
+                      <span className="font-medium text-slate-500 dark:text-slate-500">Built for</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Internal lead management & client outreach tracking</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-200 dark:border-white/5 flex gap-2">
                   <button 
                     type="button"
                     onClick={() => setIsSettingsOpen(false)}
