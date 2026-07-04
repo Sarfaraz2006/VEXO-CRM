@@ -618,10 +618,10 @@ export default function App() {
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-1 rounded-xl text-xs font-medium w-full sm:w-auto justify-center">
+            <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-1 rounded-xl text-xs font-medium w-full sm:w-auto justify-center gap-1">
               <button
                 onClick={() => setActiveTab('leads')}
-                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
                   activeTab === 'leads' 
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -630,8 +630,28 @@ export default function App() {
                 Leads
               </button>
               <button
+                onClick={() => setActiveTab('projects')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                  activeTab === 'projects' 
+                    ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Projects
+              </button>
+              <button
+                onClick={() => setActiveTab('invoices')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                  activeTab === 'invoices' 
+                    ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Invoices
+              </button>
+              <button
                 onClick={() => setActiveTab('analytics')}
-                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
                   activeTab === 'analytics' 
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -689,7 +709,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
-        {activeTab === 'leads' ? (
+        {activeTab === 'leads' && (
           <>
 
         {/* STATS ROW */}
@@ -975,7 +995,21 @@ export default function App() {
         </section>
 
           </>
-        ) : (
+        )}
+
+        {activeTab === 'projects' && (
+          <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-8 text-center text-slate-500 font-medium">
+            Projects Section (Step 3) placeholder.
+          </div>
+        )}
+
+        {activeTab === 'invoices' && (
+          <div className="bg-[#ffffff] dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-8 text-center text-slate-500 font-medium">
+            Invoices Section (Step 4) placeholder.
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
