@@ -1,0 +1,1283 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Search, 
+  Filter, 
+  Plus, 
+  Settings, 
+  Database, 
+  FileSpreadsheet, 
+  TrendingUp, 
+  Users, 
+  CheckCircle2, 
+  MessageSquare, 
+  Calendar, 
+  Phone, 
+  MapPin, 
+  Globe, 
+  X, 
+  ChevronDown, 
+  Download, 
+  Upload, 
+  AlertCircle, 
+  ExternalLink, 
+  RefreshCw,
+  Copy,
+  Check,
+  Building2,
+  Trash2
+} from 'lucide-react';
+
+// Custom inline brand icon for Instagram since Lucide-react deprecated brand icons
+const Instagram = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
+import { AnimatePresence, motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
+import seedLeadsData from './seedLeads.json';
+import { fetchLeadsFromSheets, syncAllLeadsToSheets } from './googleSheets';
+
+// Priority Styles
+const PRIORITY_STYLES = {
+  HIGH: {
+    bg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    dot: 'bg-rose-400',
+  },
+  MED: {
+    bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    dot: 'bg-amber-400',
+  },
+  LOW: {
+    bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    dot: 'bg-emerald-400',
+  }
+};
+
+// Outreach Status Styles
+const STATUS_STYLES = {
+  'Not Contacted': 'bg-slate-500/10 text-slate-400 border-slate-500/15',
+  'Messaged': 'bg-blue-500/10 text-blue-400 border-blue-500/15',
+  'Replied': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15',
+  'Interested': 'bg-violet-500/10 text-violet-400 border-violet-500/15',
+  'Not Interested': 'bg-zinc-700/20 text-zinc-500 border-zinc-700/30',
+  'Closed Won': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+  'Closed Lost': 'bg-rose-500/10 text-rose-400 border-rose-500/15'
+};
+
+const STATUS_OPTIONS = [
+  'Not Contacted',
+  'Messaged',
+  'Replied',
+  'Interested',
+  'Not Interested',
+  'Closed Won',
+  'Closed Lost'
+];
+
+export default function App() {
+  // --- STATE ---
+  const [leads, setLeads] = useState(() => {
+    const local = localStorage.getItem('leads_crm_data');
+    if (local) {
+      try { return JSON.parse(local); } catch (e) { console.error(e); }
+    }
+    return seedLeadsData;
+  });
+
+  const [syncConfig, setSyncConfig] = useState(() => {
+    const local = localStorage.getItem('leads_crm_sync_config');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return {
+      mode: 'local', // 'local' or 'sheets'
+      sheetId: '',
+      apiKey: '',
+    };
+  });
+
+  // UI state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterPriority, setFilterPriority] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('business_name'); // 'business_name', 'priority', 'last_contacted'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  // Settings Inputs
+  const [tempSheetId, setTempSheetId] = useState(syncConfig.sheetId);
+  const [tempApiKey, setTempApiKey] = useState(syncConfig.apiKey);
+  const [tempMode, setTempMode] = useState(syncConfig.mode);
+
+  // New Lead Form State
+  const [newLeadForm, setNewLeadForm] = useState({
+    business_name: '',
+    phone: '',
+    address: '',
+    category: '',
+    website_status: 'Needs Redesign',
+    instagram_handle: '',
+    priority: 'MED',
+    outreach_status: 'Not Contacted',
+    notes: ''
+  });
+
+  // Feedback states
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Save to LocalStorage whenever leads or sync config changes
+  useEffect(() => {
+    localStorage.setItem('leads_crm_data', JSON.stringify(leads));
+  }, [leads]);
+
+  useEffect(() => {
+    localStorage.setItem('leads_crm_sync_config', JSON.stringify(syncConfig));
+  }, [syncConfig]);
+
+  // Toast Helper
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  // --- GOOGLE SHEETS SYNC SYNC ---
+  const syncWithGoogleSheets = async (configToUse = syncConfig) => {
+    if (configToUse.mode !== 'sheets') return;
+    if (!configToUse.sheetId || !configToUse.apiKey) {
+      setSyncError('Google Sheet ID aur API Key set karein.');
+      return;
+    }
+
+    setSyncing(true);
+    setSyncError('');
+    try {
+      // Sync local leads to sheets (overwriting/writing)
+      await syncAllLeadsToSheets(configToUse.sheetId, configToUse.apiKey, leads);
+      showToast('✅ Google Sheets synced successfully!');
+    } catch (err) {
+      console.error(err);
+      setSyncError(err.message || 'Sync failed. Check credentials/permissions.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const fetchFromGoogleSheets = async () => {
+    if (!syncConfig.sheetId || !syncConfig.apiKey) {
+      setSyncError('Google Sheet ID aur API Key required hain.');
+      return;
+    }
+
+    setSyncing(true);
+    setSyncError('');
+    try {
+      const fetched = await fetchLeadsFromSheets(syncConfig.sheetId, syncConfig.apiKey);
+      if (fetched && fetched.length > 0) {
+        setLeads(fetched);
+        showToast('📥 Google Sheets content imported!');
+      } else {
+        showToast('💡 Google Sheet is empty or invalid.');
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncError(err.message || 'Import failed. Check credentials/permissions.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // --- STATS COMPUTATION ---
+  const stats = useMemo(() => {
+    const total = leads.length;
+    const contacted = leads.filter(l => l.outreach_status !== 'Not Contacted').length;
+    const replied = leads.filter(l => ['Replied', 'Interested', 'Closed Won', 'Closed Lost'].includes(l.outreach_status)).length;
+    const won = leads.filter(l => l.outreach_status === 'Closed Won').length;
+
+    const contactedPct = total > 0 ? Math.round((contacted / total) * 100) : 0;
+    const repliedPct = contacted > 0 ? Math.round((replied / contacted) * 100) : 0;
+    const wonPct = total > 0 ? Math.round((won / total) * 100) : 0;
+
+    return { total, contacted, contactedPct, replied, repliedPct, won, wonPct };
+  }, [leads]);
+
+  // --- UNIQUE CATEGORIES ---
+  const categories = useMemo(() => {
+    const cats = new Set(leads.map(l => l.category).filter(Boolean));
+    return ['All', ...Array.from(cats)];
+  }, [leads]);
+
+  // --- FILTER & SORT LEADS ---
+  const filteredLeads = useMemo(() => {
+    return leads
+      .filter(lead => {
+        // Search term matching
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = 
+          lead.business_name.toLowerCase().includes(search) ||
+          lead.phone.toLowerCase().includes(search) ||
+          lead.address.toLowerCase().includes(search) ||
+          lead.category.toLowerCase().includes(search) ||
+          (lead.instagram_handle && lead.instagram_handle.toLowerCase().includes(search));
+
+        const matchesPriority = filterPriority === 'All' || lead.priority === filterPriority;
+        const matchesStatus = filterStatus === 'All' || lead.outreach_status === filterStatus;
+        const matchesCategory = filterCategory === 'All' || lead.category === filterCategory;
+
+        return matchesSearch && matchesPriority && matchesStatus && matchesCategory;
+      })
+      .sort((a, b) => {
+        let valA = a[sortBy] || '';
+        let valB = b[sortBy] || '';
+
+        // Priority sorting logic
+        if (sortBy === 'priority') {
+          const weight = { HIGH: 3, MED: 2, LOW: 1 };
+          valA = weight[a.priority] || 0;
+          valB = weight[b.priority] || 0;
+        }
+
+        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [leads, searchTerm, filterPriority, filterStatus, filterCategory, sortBy, sortOrder]);
+
+  // --- HANDLERS ---
+  const handleAddLead = (e) => {
+    e.preventDefault();
+    if (!newLeadForm.business_name) {
+      showToast('⚠️ Business name is required.');
+      return;
+    }
+
+    const newLead = {
+      ...newLeadForm,
+      id: `lead_${Date.now()}`,
+      last_contacted: newLeadForm.outreach_status !== 'Not Contacted' ? new Date().toISOString().split('T')[0] : '',
+      follow_up_date: ''
+    };
+
+    const updated = [newLead, ...leads];
+    setLeads(updated);
+    setIsAddLeadOpen(false);
+    showToast('✨ New Lead added!');
+    
+    // Reset form
+    setNewLeadForm({
+      business_name: '',
+      phone: '',
+      address: '',
+      category: '',
+      website_status: 'Needs Redesign',
+      instagram_handle: '',
+      priority: 'MED',
+      outreach_status: 'Not Contacted',
+      notes: ''
+    });
+
+    if (syncConfig.mode === 'sheets') {
+      // Sync immediately
+      syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updated)
+        .catch(err => setSyncError(err.message));
+    }
+  };
+
+  const handleUpdateLeadDetail = (updatedLead) => {
+    const triggerConfetti = 
+      updatedLead.outreach_status === 'Closed Won' && 
+      leads.find(l => l.id === updatedLead.id)?.outreach_status !== 'Closed Won';
+
+    const updatedLeads = leads.map(l => l.id === updatedLead.id ? updatedLead : l);
+    setLeads(updatedLeads);
+    setSelectedLead(updatedLead);
+    showToast('💾 Lead details updated!');
+
+    if (triggerConfetti) {
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    }
+
+    if (syncConfig.mode === 'sheets') {
+      syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updatedLeads)
+        .catch(err => setSyncError(err.message));
+    }
+  };
+
+  const handleDeleteLead = (id) => {
+    if (window.confirm('Kya aap is lead ko delete karna chahte hain?')) {
+      const updated = leads.filter(l => l.id !== id);
+      setLeads(updated);
+      setSelectedLead(null);
+      showToast('🗑️ Lead deleted!');
+
+      if (syncConfig.mode === 'sheets') {
+        syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updated)
+          .catch(err => setSyncError(err.message));
+      }
+    }
+  };
+
+  const handleSaveSettings = (e) => {
+    e.preventDefault();
+    const newConfig = {
+      mode: tempMode,
+      sheetId: tempSheetId,
+      apiKey: tempApiKey
+    };
+    setSyncConfig(newConfig);
+    setIsSettingsOpen(false);
+    showToast('⚙️ Settings updated!');
+
+    if (newConfig.mode === 'sheets') {
+      syncWithGoogleSheets(newConfig);
+    }
+  };
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+    showToast('📋 Copied to clipboard');
+  };
+
+  const exportLocalCSV = () => {
+    const headers = ['Business Name', 'Phone', 'Address', 'Category', 'Website Status', 'Instagram Handle', 'Priority', 'Outreach Status', 'Last Contacted', 'Notes', 'Follow Up Date', 'ID'];
+    const rows = leads.map(l => [
+      l.business_name,
+      l.phone,
+      l.address,
+      l.category,
+      l.website_status,
+      l.instagram_handle,
+      l.priority,
+      l.outreach_status,
+      l.last_contacted,
+      l.notes,
+      l.follow_up_date,
+      l.id
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.map(h => `"${h}"`).join(','), ...rows.map(r => r.map(v => `"${v || ''}"`).join(','))].join('\n');
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `nexus_leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  return (
+    <div className="min-h-screen bg-[#06070a] text-slate-100 pb-12 antialiased">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-slate-900 border border-white/10 text-sm font-medium shadow-2xl flex items-center gap-2"
+          >
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* HEADER BAR */}
+      <header className="sticky top-0 z-40 bg-[#06070a]/80 backdrop-blur-md border-b border-white/5 py-4 px-4 md:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <Building2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="font-extrabold tracking-tight text-lg bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">AURA CRM</h1>
+              <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Lead Tracker</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Sync Indicator */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-[11px] text-slate-400 font-mono">
+              <span className={`w-2 h-2 rounded-full ${syncConfig.mode === 'sheets' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+              {syncConfig.mode === 'sheets' ? 'Sheets Connected' : 'Local Sandbox'}
+            </div>
+
+            {syncConfig.mode === 'sheets' && (
+              <button 
+                onClick={() => syncWithGoogleSheets()}
+                disabled={syncing}
+                className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition duration-150 disabled:opacity-40"
+                title="Sync now"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition duration-150"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
+            <button 
+              onClick={() => setIsAddLeadOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold rounded-xl hover:brightness-110 shadow-lg shadow-indigo-500/10 transition active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Lead</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
+        {/* STATS ROW */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Card 1: Total Leads */}
+          <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-500 mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider">Total Leads</span>
+              <Users className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div>
+              <span className="text-2xl md:text-3xl font-extrabold text-slate-100">{stats.total}</span>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">Enriched lead profiles</p>
+            </div>
+          </div>
+
+          {/* Card 2: Contacted */}
+          <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-500 mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider">Contacted</span>
+              <MessageSquare className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <span className="text-2xl md:text-3xl font-extrabold text-slate-100">{stats.contacted}</span>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">{stats.contactedPct}% of database outreach</p>
+            </div>
+          </div>
+
+          {/* Card 3: Replied */}
+          <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-500 mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider">Responses</span>
+              <TrendingUp className="w-4 h-4 text-purple-400" />
+            </div>
+            <div>
+              <span className="text-2xl md:text-3xl font-extrabold text-slate-100">{stats.replied}</span>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">{stats.repliedPct}% conversation rate</p>
+            </div>
+          </div>
+
+          {/* Card 4: Won */}
+          <div className="bg-[#101217] glow-card border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-500 mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider">Closed Won</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <span className="text-2xl md:text-3xl font-extrabold text-emerald-400">{stats.won}</span>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">{stats.wonPct}% overall conversion</p>
+            </div>
+          </div>
+        </section>
+
+        {/* ERROR BOX */}
+        {syncError && (
+          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-3 font-mono">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <div className="flex-1">
+              <strong>Sync Error:</strong> {syncError}
+            </div>
+            <button 
+              onClick={() => setSyncError('')}
+              className="p-1 text-rose-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* FILTER BAR PANEL */}
+        <section className="bg-[#101217] border border-white/5 rounded-2xl p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            {/* Search */}
+            <div className="relative md:col-span-4">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              <input 
+                type="text" 
+                placeholder="Search leads by name, phone, handle..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filters */}
+            <div className="grid grid-cols-3 gap-2 md:col-span-6">
+              {/* Category */}
+              <div className="relative">
+                <select 
+                  value={filterCategory} 
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                >
+                  <option value="All">All Categories</option>
+                  {categories.filter(c => c !== 'All').map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              </div>
+
+              {/* Priority */}
+              <div className="relative">
+                <select 
+                  value={filterPriority} 
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                >
+                  <option value="All">All Priority</option>
+                  <option value="HIGH">High</option>
+                  <option value="MED">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              </div>
+
+              {/* Status */}
+              <div className="relative">
+                <select 
+                  value={filterStatus} 
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                >
+                  <option value="All">All Status</option>
+                  {STATUS_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Sort Controls */}
+            <div className="flex items-center justify-between md:col-span-2 gap-2">
+              <div className="relative flex-1">
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                >
+                  <option value="business_name">Sort Name</option>
+                  <option value="priority">Sort Priority</option>
+                  <option value="last_contacted">Sort Last Contact</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              </div>
+
+              <button 
+                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                className="p-2.5 bg-[#171922] border border-white/5 text-xs text-slate-400 rounded-xl hover:text-white"
+                title="Toggle Sort Order"
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* LEADS LIST / TABLE AREA */}
+        <section className="bg-[#101217] border border-white/5 rounded-2xl overflow-hidden">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-[#0c0e12]/30">
+                  <th className="py-4 px-6">Business & Info</th>
+                  <th className="py-4 px-4">Category</th>
+                  <th className="py-4 px-4">Website</th>
+                  <th className="py-4 px-4">Priority</th>
+                  <th className="py-4 px-4">Outreach</th>
+                  <th className="py-4 px-4">Last Contacted</th>
+                  <th className="py-4 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-sm">
+                {filteredLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="py-12 text-center text-slate-500 font-medium">
+                      No leads match your search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLeads.map((lead) => (
+                    <tr 
+                      key={lead.id} 
+                      onClick={() => setSelectedLead(lead)}
+                      className="group hover:bg-white/[0.01] transition-colors cursor-pointer"
+                    >
+                      <td className="py-4 px-6">
+                        <div>
+                          <div className="font-bold text-slate-200 group-hover:text-indigo-400 transition-colors">{lead.business_name}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono">{lead.phone}</span>
+                            {lead.instagram_handle && (
+                              <span className="text-[10px] text-purple-400/80 font-mono">@{lead.instagram_handle}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="text-xs bg-slate-900 border border-white/5 px-2.5 py-1 rounded-full text-slate-400 font-medium capitalize">
+                          {lead.category}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                          lead.website_status === 'no' || lead.website_status === 'No Website' 
+                            ? 'text-rose-400/80' 
+                            : 'text-emerald-400/80'
+                        }`}>
+                          {lead.website_status === 'no' || lead.website_status === 'No Website' ? '❌ No Web' : '✅ Active'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-md flex items-center gap-1.5 w-max ${PRIORITY_STYLES[lead.priority]?.bg || ''}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${PRIORITY_STYLES[lead.priority]?.dot || ''}`} />
+                          {lead.priority}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`text-xs border px-2.5 py-1 rounded-full font-medium ${STATUS_STYLES[lead.outreach_status] || ''}`}>
+                          {lead.outreach_status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 font-mono text-xs text-slate-400">
+                        {lead.last_contacted || '—'}
+                      </td>
+                      <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button 
+                          onClick={() => setSelectedLead(lead)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold py-1 px-3.5 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/10 transition"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card List View */}
+          <div className="block lg:hidden divide-y divide-white/5">
+            {filteredLeads.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-sm font-medium">
+                No leads match your search criteria.
+              </div>
+            ) : (
+              filteredLeads.map((lead) => (
+                <div 
+                  key={lead.id} 
+                  onClick={() => setSelectedLead(lead)}
+                  className="p-4 hover:bg-white/[0.01] active:bg-white/[0.02] cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <h4 className="font-extrabold text-slate-200">{lead.business_name}</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5 capitalize">{lead.category} • {lead.phone}</p>
+                    </div>
+                    <span className={`text-[9px] font-bold border px-1.5 py-0.5 rounded-md flex items-center gap-1 ${PRIORITY_STYLES[lead.priority]?.bg || ''}`}>
+                      {lead.priority}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 text-xs">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.outreach_status] || ''}`}>
+                      {lead.outreach_status}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Last Contact: {lead.last_contacted || '—'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </main>
+
+      {/* LEAD DETAIL SLIDE DRAWER */}
+      <AnimatePresence>
+        {selectedLead && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedLead(null)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+            {/* Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#0c0e12] border-l border-white/10 z-50 shadow-2xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-5 border-b border-white/5 mb-6">
+                  <div>
+                    <h2 className="font-extrabold text-xl text-slate-100">{selectedLead.business_name}</h2>
+                    <p className="text-xs text-slate-400 capitalize">{selectedLead.category} Lead Profile</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => handleDeleteLead(selectedLead.id)}
+                      className="p-2 text-rose-400 hover:text-white hover:bg-rose-500/10 rounded-xl transition duration-150"
+                      title="Delete Lead"
+                    >
+                      <Trash2 className="w-4.5 h-4.5" />
+                    </button>
+                    <button 
+                      onClick={() => setSelectedLead(null)}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition duration-150"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lead Attributes Grid */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="p-3 bg-[#171922] border border-white/5 rounded-xl">
+                    <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Outreach Phone</div>
+                    <div className="text-sm font-semibold text-slate-200 mt-1 flex items-center justify-between gap-2">
+                      <span className="font-mono">{selectedLead.phone || '—'}</span>
+                      {selectedLead.phone && (
+                        <button onClick={() => copyToClipboard(selectedLead.phone, 'phone')} className="text-indigo-400 hover:text-white">
+                          {copiedId === 'phone' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-[#171922] border border-white/5 rounded-xl">
+                    <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Instagram Handle</div>
+                    <div className="text-sm font-semibold text-slate-200 mt-1 flex items-center justify-between gap-2">
+                      <span>{selectedLead.instagram_handle ? `@${selectedLead.instagram_handle}` : '—'}</span>
+                      {selectedLead.instagram_handle && (
+                        <button onClick={() => copyToClipboard(selectedLead.instagram_handle, 'ig')} className="text-purple-400 hover:text-white">
+                          {copiedId === 'ig' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 p-3 bg-[#171922] border border-white/5 rounded-xl">
+                    <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Business Address</div>
+                    <div className="text-xs text-slate-300 mt-1 flex items-start gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
+                      <span>{selectedLead.address || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Edit Form Fields */}
+                <div className="space-y-4">
+                  {/* Status Dropdowns */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Outreach Status</label>
+                      <div className="relative">
+                        <select 
+                          value={selectedLead.outreach_status}
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            handleUpdateLeadDetail({
+                              ...selectedLead,
+                              outreach_status: newStatus,
+                              last_contacted: newStatus !== 'Not Contacted' ? new Date().toISOString().split('T')[0] : selectedLead.last_contacted
+                            });
+                          }}
+                          className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        >
+                          {STATUS_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Priority</label>
+                      <div className="relative">
+                        <select 
+                          value={selectedLead.priority}
+                          onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, priority: e.target.value })}
+                          className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        >
+                          <option value="HIGH">High</option>
+                          <option value="MED">Medium</option>
+                          <option value="LOW">Low</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dates & Status */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Follow Up Date</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                        <input 
+                          type="date"
+                          value={selectedLead.follow_up_date || ''}
+                          onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, follow_up_date: e.target.value })}
+                          className="w-full bg-[#171922] border border-white/5 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Website Status</label>
+                      <div className="relative">
+                        <select 
+                          value={selectedLead.website_status}
+                          onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, website_status: e.target.value })}
+                          className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        >
+                          <option value="no">No Website</option>
+                          <option value="Needs Redesign">Needs Redesign</option>
+                          <option value="Outdated">Outdated / Legacy</option>
+                          <option value="Good">Good / Responsive</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes Area */}
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Outreach Conversation Notes</label>
+                    <textarea 
+                      rows="6"
+                      value={selectedLead.notes || ''}
+                      onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, notes: e.target.value })}
+                      placeholder="Add meeting notes, call recap, design requests or project budget estimate..."
+                      className="w-full bg-[#171922] border border-white/5 rounded-xl p-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Save Button */}
+              <div className="pt-4 border-t border-white/5 flex gap-2">
+                <button 
+                  onClick={() => setSelectedLead(null)}
+                  className="flex-1 bg-white/5 border border-white/5 text-slate-300 hover:text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10"
+                >
+                  Close Profile
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ADD LEAD SLIDE DRAWER */}
+      <AnimatePresence>
+        {isAddLeadOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddLeadOpen(false)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+            {/* Form Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-[#0c0e12] border-l border-white/10 z-50 shadow-2xl p-6 overflow-y-auto flex flex-col justify-between"
+            >
+              <form onSubmit={handleAddLead} className="h-full flex flex-col justify-between">
+                <div>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-5 border-b border-white/5 mb-6">
+                    <div>
+                      <h2 className="font-extrabold text-xl text-slate-100">Add New Agency Lead</h2>
+                      <p className="text-xs text-slate-400">Add manually to your prospecting database</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddLeadOpen(false)}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition duration-150"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Business Name */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Business Name *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newLeadForm.business_name}
+                        onChange={(e) => setNewLeadForm({ ...newLeadForm, business_name: e.target.value })}
+                        placeholder="e.g. Studio Hair & Styling"
+                        className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                      />
+                    </div>
+
+                    {/* Category & Phone */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Category</label>
+                        <input 
+                          type="text"
+                          value={newLeadForm.category}
+                          onChange={(e) => setNewLeadForm({ ...newLeadForm, category: e.target.value })}
+                          placeholder="e.g. hair salon, dentist"
+                          className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Outreach Phone</label>
+                        <input 
+                          type="text"
+                          value={newLeadForm.phone}
+                          onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
+                          placeholder="e.g. +44 20 8304 4456"
+                          className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Business Address</label>
+                      <input 
+                        type="text"
+                        value={newLeadForm.address}
+                        onChange={(e) => setNewLeadForm({ ...newLeadForm, address: e.target.value })}
+                        placeholder="Full physical address or city info"
+                        className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                      />
+                    </div>
+
+                    {/* Instagram & Website */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Instagram Handle</label>
+                        <input 
+                          type="text"
+                          value={newLeadForm.instagram_handle}
+                          onChange={(e) => setNewLeadForm({ ...newLeadForm, instagram_handle: e.target.value })}
+                          placeholder="e.g. studio_hair_design"
+                          className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Website Status</label>
+                        <div className="relative">
+                          <select 
+                            value={newLeadForm.website_status}
+                            onChange={(e) => setNewLeadForm({ ...newLeadForm, website_status: e.target.value })}
+                            className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="no">No Website</option>
+                            <option value="Needs Redesign">Needs Redesign</option>
+                            <option value="Outdated">Outdated / Legacy</option>
+                            <option value="Good">Good / Responsive</option>
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Priority & Status */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Priority</label>
+                        <div className="relative">
+                          <select 
+                            value={newLeadForm.priority}
+                            onChange={(e) => setNewLeadForm({ ...newLeadForm, priority: e.target.value })}
+                            className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="HIGH">High</option>
+                            <option value="MED">Medium</option>
+                            <option value="LOW">Low</option>
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Initial Status</label>
+                        <div className="relative">
+                          <select 
+                            value={newLeadForm.outreach_status}
+                            onChange={(e) => setNewLeadForm({ ...newLeadForm, outreach_status: e.target.value })}
+                            className="w-full appearance-none bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          >
+                            {STATUS_OPTIONS.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Notes / Context</label>
+                      <textarea 
+                        rows="4"
+                        value={newLeadForm.notes}
+                        onChange={(e) => setNewLeadForm({ ...newLeadForm, notes: e.target.value })}
+                        placeholder="Add background info, design ideas, or specific outreach hooks..."
+                        className="w-full bg-[#171922] border border-white/5 rounded-xl p-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-white/5 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddLeadOpen(false)}
+                    className="flex-1 bg-white/5 border border-white/5 text-slate-300 hover:text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:brightness-110"
+                  >
+                    Save Lead
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* SETTINGS MODAL */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSettingsOpen(false)}
+              className="absolute inset-0 bg-black cursor-pointer"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-lg bg-[#0c0e12] border border-white/10 rounded-2xl shadow-2xl p-6 overflow-hidden z-10"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-5">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-indigo-400" />
+                  <h2 className="font-extrabold text-lg text-slate-100">CRM Engine Config</h2>
+                </div>
+                <button 
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                {/* Database selection */}
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-2">Storage Engine Mode</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setTempMode('local')}
+                      className={`py-3 px-4 rounded-xl border text-left flex flex-col justify-between transition ${
+                        tempMode === 'local' 
+                          ? 'bg-indigo-600/10 border-indigo-500 text-slate-100' 
+                          : 'bg-[#171922] border-white/5 text-slate-400 hover:border-white/10'
+                      }`}
+                    >
+                      <Database className="w-4.5 h-4.5 mb-1.5" />
+                      <div>
+                        <div className="text-xs font-bold">Local Sandbox</div>
+                        <div className="text-[9px] text-slate-400 mt-0.5">Saves to LocalStorage (Fast & Offline)</div>
+                      </div>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setTempMode('sheets')}
+                      className={`py-3 px-4 rounded-xl border text-left flex flex-col justify-between transition ${
+                        tempMode === 'sheets' 
+                          ? 'bg-indigo-600/10 border-indigo-500 text-slate-100' 
+                          : 'bg-[#171922] border-white/5 text-slate-400 hover:border-white/10'
+                      }`}
+                    >
+                      <FileSpreadsheet className="w-4.5 h-4.5 mb-1.5" />
+                      <div>
+                        <div className="text-xs font-bold">Google Sheets API</div>
+                        <div className="text-[9px] text-slate-400 mt-0.5">Sync database to spreadsheet rows</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sheets configuration */}
+                {tempMode === 'sheets' && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-3 pt-2"
+                  >
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Google Sheet ID</label>
+                      <input 
+                        type="text"
+                        value={tempSheetId}
+                        onChange={(e) => setTempSheetId(e.target.value)}
+                        placeholder="e.g. 1a2b3c4d5e6f7g8h9i0j..."
+                        className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Google Cloud API Key (v4)</label>
+                      <input 
+                        type="password"
+                        value={tempApiKey}
+                        onChange={(e) => setTempApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="w-full bg-[#171922] border border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button 
+                        type="button"
+                        onClick={fetchFromGoogleSheets}
+                        disabled={syncing || !tempSheetId || !tempApiKey}
+                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Import Sheet
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => syncWithGoogleSheets({ mode: 'sheets', sheetId: tempSheetId, apiKey: tempApiKey })}
+                        disabled={syncing || !tempSheetId || !tempApiKey}
+                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Export to Sheet
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* CSV export utilities */}
+                <div className="pt-3 border-t border-white/5">
+                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Backup Tools</label>
+                  <button 
+                    type="button"
+                    onClick={exportLocalCSV}
+                    className="w-full bg-white/5 border border-white/5 text-slate-300 hover:text-white py-2 px-4 rounded-xl text-xs font-semibold hover:bg-white/10 flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download CRM Data as CSV (.csv)
+                  </button>
+                </div>
+
+                <div className="pt-4 border-t border-white/5 flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="flex-1 bg-white/5 border border-white/5 text-slate-300 hover:text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2.5 rounded-xl text-xs font-semibold hover:brightness-110"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
