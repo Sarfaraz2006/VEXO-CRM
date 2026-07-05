@@ -261,7 +261,10 @@ const defaultTemplateConfig = {
   swiftBIC: 'TRWIBEB1XXX',
   paypal: 'payments@vexoteamx.com',
   qrUrl: '/payment_qr_card.png',
-  notesText: 'Thank you for choosing VexoteamX. We are committed to delivering excellence and driving real results for your business.\n\nIf you have any questions, feel free to reach out to us.'
+  notesText: 'Thank you for choosing VexoteamX. We are committed to delivering excellence and driving real results for your business.\n\nIf you have any questions, feel free to reach out to us.',
+  taxLabel: 'GST',
+  taxPercentage: 18,
+  discountAmount: 0
 };
 
 export default function App() {
@@ -508,6 +511,41 @@ export default function App() {
       });
     }
   };
+
+  const handleUpdateInvoiceItems = (updatedItems) => {
+    setSelectedInvoice(prev => {
+      if (!prev) return null;
+      const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const discount = templateConfig.discountAmount || 0;
+      const taxRate = templateConfig.taxPercentage || 0;
+      const tax = (subtotal - discount) * (taxRate / 100);
+      const totalAmount = Math.max(0, subtotal - discount + tax);
+
+      const updated = { ...prev, items: updatedItems, amount: totalAmount };
+      setInvoices(prevInvoices => prevInvoices.map(inv => inv.id === prev.id ? updated : inv));
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedInvoice) return;
+    const items = selectedInvoice.items || getInvoiceItems(selectedInvoice, projects);
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const discount = templateConfig.discountAmount || 0;
+    const taxRate = templateConfig.taxPercentage || 0;
+    const tax = (subtotal - discount) * (taxRate / 100);
+    const calculatedTotal = Math.max(0, subtotal - discount + tax);
+
+    if (Math.abs(parseFloat(selectedInvoice.amount || 0) - calculatedTotal) > 0.01 || !selectedInvoice.items) {
+      setSelectedInvoice(prev => {
+        if (!prev) return null;
+        const updated = { ...prev, amount: calculatedTotal, items: items };
+        setInvoices(prevInvoices => prevInvoices.map(inv => inv.id === prev.id ? updated : inv));
+        return updated;
+      });
+    }
+  }, [selectedInvoice?.items, templateConfig.taxPercentage, templateConfig.discountAmount, selectedInvoice?.id]);
+
 
   // --- GOOGLE SHEETS SYNC SYNC ---
   const syncWithGoogleSheets = async (configToUse = syncConfig) => {
@@ -3024,6 +3062,12 @@ export default function App() {
         {selectedInvoice && (() => {
           const lead = leads.find(l => l.business_name === selectedInvoice.client_name);
           const project = projects.find(p => p.id === selectedInvoice.project_id);
+          const invoiceItems = selectedInvoice.items || getInvoiceItems(selectedInvoice, projects);
+          const subtotal = invoiceItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+          const discountAmount = templateConfig.discountAmount || 0;
+          const taxPercentage = templateConfig.taxPercentage || 0;
+          const taxAmount = Math.max(0, subtotal - discountAmount) * (taxPercentage / 100);
+          const totalDue = Math.max(0, subtotal - discountAmount + taxAmount);
           
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 overflow-hidden bg-black/75 backdrop-blur-xs print:p-0 print:bg-white">
@@ -3379,7 +3423,166 @@ export default function App() {
                         </div>
                       )}
 
+                      {/* Section 5: Services & Line Items */}
+                      <div className="space-y-3.5 border-t border-slate-200 dark:border-white/5 pt-4 mt-2">
+                        <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1">Services & Line Items</span>
+                        
+                        <div className="space-y-3">
+                          {((selectedInvoice.items) || getInvoiceItems(selectedInvoice, projects)).map((item, idx) => (
+                            <div key={item.id || idx} className="p-3 bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl space-y-2 relative group">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentItems = selectedInvoice.items || getInvoiceItems(selectedInvoice, projects);
+                                  const updated = currentItems.filter((_, i) => i !== idx);
+                                  handleUpdateInvoiceItems(updated);
+                                }}
+                                className="absolute top-2 right-2 text-rose-500 hover:text-rose-700 opacity-60 hover:opacity-100 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <div>
+                                <label className="block text-[9px] text-slate-400 uppercase font-mono mb-0.5">Service Name / Title</label>
+                                <input
+                                  type="text"
+                                  value={item.desc}
+                                  onChange={(e) => {
+                                    const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                                    currentItems[idx] = { ...currentItems[idx], desc: e.target.value };
+                                    handleUpdateInvoiceItems(currentItems);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg py-1 px-2 text-[11px] outline-none text-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label className="block text-[9px] text-slate-400 uppercase font-mono mb-0.5">Scope / Details</label>
+                                <input
+                                  type="text"
+                                  value={item.detail}
+                                  onChange={(e) => {
+                                    const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                                    currentItems[idx] = { ...currentItems[idx], detail: e.target.value };
+                                    handleUpdateInvoiceItems(currentItems);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg py-1 px-2 text-[11px] outline-none text-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <label className="block text-[9px] text-slate-400 uppercase font-mono mb-0.5">Qty</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={item.qty}
+                                    onChange={(e) => {
+                                      const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                                      currentItems[idx] = { ...currentItems[idx], qty: parseInt(e.target.value) || 1 };
+                                      handleUpdateInvoiceItems(currentItems);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg py-1 px-2 text-[11px] outline-none text-slate-800 dark:text-slate-200 text-center font-mono"
+                                  />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-[9px] text-slate-400 uppercase font-mono mb-0.5">Unit Price ({selectedInvoice.currency === 'INR' ? '₹' : '$'})</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.price}
+                                    onChange={(e) => {
+                                      const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                                      currentItems[idx] = { ...currentItems[idx], price: parseFloat(e.target.value) || 0 };
+                                      handleUpdateInvoiceItems(currentItems);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg py-1 px-2 text-[11px] outline-none text-slate-800 dark:text-slate-200 font-mono text-right"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-[9px] text-slate-400 uppercase font-mono mb-0.5">Icon Style</label>
+                                <div className="flex gap-1.5 mt-1">
+                                  {['code', 'video', 'robot', 'settings', 'rocket'].map(iconName => (
+                                    <button
+                                      key={iconName}
+                                      type="button"
+                                      onClick={() => {
+                                        const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                                        currentItems[idx] = { ...currentItems[idx], icon: iconName };
+                                        handleUpdateInvoiceItems(currentItems);
+                                      }}
+                                      className={`flex-1 py-1 rounded text-center border capitalize text-[9px] transition cursor-pointer ${item.icon === iconName ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 font-bold' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-white/5 text-slate-405'}`}
+                                    >
+                                      {iconName}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentItems = [...(selectedInvoice.items || getInvoiceItems(selectedInvoice, projects))];
+                            const newItem = {
+                              id: `item_${Date.now()}`,
+                              desc: 'New Service Deliverable',
+                              detail: 'Milestone scope details',
+                              qty: 1,
+                              price: 500,
+                              icon: 'code'
+                            };
+                            handleUpdateInvoiceItems([...currentItems, newItem]);
+                          }}
+                          className="w-full py-2 bg-indigo-600/10 hover:bg-indigo-650/20 border border-indigo-500/20 text-indigo-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Line Item</span>
+                        </button>
+                      </div>
+
+                      {/* Section 6: Discounts & Taxes */}
+                      <div className="space-y-3.5 border-t border-slate-200 dark:border-white/5 pt-4 mt-2">
+                        <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1">Discounts & Taxes</span>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Tax Label (GST/VAT)</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.taxLabel} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, taxLabel: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Tax Rate (%)</label>
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={templateConfig.taxPercentage} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, taxPercentage: parseFloat(e.target.value) || 0 }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Discount Amount ({selectedInvoice.currency === 'INR' ? '₹' : '$'})</label>
+                          <input 
+                            type="number" 
+                            min="0"
+                            value={templateConfig.discountAmount} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, discountAmount: parseFloat(e.target.value) || 0 }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                      </div>
+
                     </div>
+
                   </div>
 
                   {/* Right Panel: Scaled Invoice Preview */}
@@ -3555,7 +3758,7 @@ export default function App() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-150 text-[11px] text-slate-650 bg-white">
-                                {getInvoiceItems(selectedInvoice, projects).map((item, idx) => {
+                                {invoiceItems.map((item, idx) => {
                                   let IconComponent = Code;
                                   if (item.icon === 'code') IconComponent = Code;
                                   else if (item.icon === 'video') IconComponent = Video;
@@ -3601,26 +3804,33 @@ export default function App() {
                               <span>SUBTOTAL</span>
                               <span className="font-mono font-bold">
                                 {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                                {parseFloat(selectedInvoice.amount === 3500 ? 3700 : selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
-                            <div className="flex justify-between items-center py-1 text-indigo-600 font-semibold">
-                              <span>DISCOUNT</span>
-                              <span className="font-mono font-bold">
-                                {selectedInvoice.currency === 'INR' ? '-₹' : '-$'}
-                                {parseFloat(selectedInvoice.amount === 3500 ? 200 : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center py-1">
-                              <span>TAX (0%)</span>
-                              <span className="font-mono">$0.00</span>
-                            </div>
+                            {discountAmount > 0 && (
+                              <div className="flex justify-between items-center py-1 text-emerald-600 font-semibold">
+                                <span>DISCOUNT</span>
+                                <span className="font-mono font-bold">
+                                  {selectedInvoice.currency === 'INR' ? '-₹' : '-$'}
+                                  {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            )}
+                            {taxPercentage > 0 && (
+                              <div className="flex justify-between items-center py-1 text-slate-500">
+                                <span>{templateConfig.taxLabel || 'TAX'} ({taxPercentage}%)</span>
+                                <span className="font-mono font-bold">
+                                  {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                  {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            )}
                             
                             <div className="bg-[#0c0b24] text-white px-5 py-3 rounded-xl font-bold font-mono text-xs tracking-wider flex items-center justify-between mt-2.5">
                               <span>TOTAL DUE</span>
                               <span className="text-sm font-black">
                                 {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                                {parseFloat(selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedInvoice.currency || 'USD'}
+                                {totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedInvoice.currency || 'USD'}
                               </span>
                             </div>
                           </div>

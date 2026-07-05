@@ -99,6 +99,11 @@ body {
 
 /* Custom CSS Print Rules for A4 High-Fidelity Invoice Printing */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 15mm 10mm 15mm;
+  }
+  
   /* Hide every element on the page */
   body * {
     visibility: hidden !important;
