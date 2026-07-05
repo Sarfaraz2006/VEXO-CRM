@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Search, 
   Filter, 
@@ -286,6 +286,66 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('leads_crm_template_config', JSON.stringify(templateConfig));
   }, [templateConfig]);
+
+  const [showEditorSidebar, setShowEditorSidebar] = useState(true);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const previewContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedInvoice) return;
+    const handleResize = () => {
+      if (previewContainerRef.current) {
+        const containerWidth = previewContainerRef.current.getBoundingClientRect().width;
+        const availableWidth = containerWidth - 32;
+        if (availableWidth < 780) {
+          setScaleFactor(Math.max(0.35, availableWidth / 780));
+        } else {
+          setScaleFactor(1);
+        }
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    const timer = setTimeout(handleResize, 100);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [selectedInvoice, modalSubTab, showEditorSidebar]);
+
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800 * 1024) {
+        showToast('⚠️ Image size must be less than 800KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTemplateConfig(prev => ({ ...prev, avatarUrl: reader.result }));
+        showToast('📸 Photo uploaded successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleQrUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800 * 1024) {
+        showToast('⚠️ Image size must be less than 800KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTemplateConfig(prev => ({ ...prev, qrUrl: reader.result }));
+        showToast('📱 QR Code uploaded successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const [syncConfig, setSyncConfig] = useState(() => {
     const local = localStorage.getItem('leads_crm_sync_config');
@@ -2955,6 +3015,12 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
+                      onClick={() => setShowEditorSidebar(prev => !prev)}
+                      className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 rounded-xl text-[11px] font-semibold transition active:scale-95 cursor-pointer"
+                    >
+                      {showEditorSidebar ? 'Hide Editor Settings' : 'Show Editor Settings'}
+                    </button>
+                    <button 
                       onClick={() => window.print()}
                       className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
                     >
@@ -2990,7 +3056,7 @@ export default function App() {
                 <div className="flex flex-1 overflow-hidden print:overflow-visible">
                   
                   {/* Left Panel: Configuration Form */}
-                  <div className={`${modalSubTab === 'edit' ? 'block' : 'hidden'} md:block w-full md:w-80 lg:w-[350px] border-r border-slate-200 dark:border-white/10 overflow-y-auto p-5 print:hidden bg-slate-50 dark:bg-[#0c0e12] shrink-0`}>
+                  <div className={`${modalSubTab === 'edit' ? 'block' : 'hidden'} ${showEditorSidebar ? 'md:block' : 'md:hidden'} w-full md:w-80 lg:w-[350px] border-r border-slate-200 dark:border-white/10 overflow-y-auto p-5 print:hidden bg-slate-50 dark:bg-[#0c0e12] shrink-0`}>
                     <h3 className="text-xs font-extrabold text-indigo-400 uppercase tracking-widest mb-4">Template Customizer</h3>
                     
                     <div className="space-y-5 text-slate-700 dark:text-slate-300 text-xs">
@@ -3071,13 +3137,48 @@ export default function App() {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Avatar Image URL / Path</label>
-                          <input 
-                            type="text" 
-                            value={templateConfig.avatarUrl} 
-                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
-                          />
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Founder Photo / Avatar</label>
+                          <div className="flex items-center gap-3 bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3">
+                            <img 
+                              src={templateConfig.avatarUrl || '/sarfaraz_avatar.png'} 
+                              alt="Avatar Preview" 
+                              className="w-12 h-12 rounded-full object-cover border border-slate-250 dark:border-white/10 shrink-0 bg-slate-800"
+                            />
+                            <div className="flex-1 space-y-1.5">
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleAvatarUpload}
+                                className="hidden" 
+                                id="avatar-upload-file" 
+                              />
+                              <label 
+                                htmlFor="avatar-upload-file"
+                                className="inline-flex items-center justify-center w-full px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg text-[10px] font-bold cursor-pointer transition text-slate-700 dark:text-slate-200 select-none text-center"
+                              >
+                                Upload Local Photo
+                              </label>
+                              {templateConfig.avatarUrl !== '/sarfaraz_avatar.png' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setTemplateConfig(prev => ({ ...prev, avatarUrl: '/sarfaraz_avatar.png' }))}
+                                  className="w-full text-center text-[9px] text-rose-400 hover:underline cursor-pointer block"
+                                >
+                                  Reset to Default Avatar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <label className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Or enter photo URL directly</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.avatarUrl} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, avatarUrl: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-1.5 px-3 text-[11px] outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                              placeholder="e.g. /sarfaraz_avatar.png"
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -3192,13 +3293,48 @@ export default function App() {
                           </div>
                           {templateConfig.showQrCode && (
                             <div>
-                              <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">QR Code Card Image URL</label>
-                              <input 
-                                type="text" 
-                                value={templateConfig.qrUrl} 
-                                onChange={(e) => setTemplateConfig(prev => ({ ...prev, qrUrl: e.target.value }))}
-                                className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
-                              />
+                              <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">QR Code Payment Card</label>
+                              <div className="flex items-center gap-3 bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3">
+                                <img 
+                                  src={templateConfig.qrUrl || '/payment_qr_card.png'} 
+                                  alt="QR Preview" 
+                                  className="w-12 h-12 rounded object-contain bg-white border border-slate-250 shrink-0 p-0.5"
+                                />
+                                <div className="flex-1 space-y-1.5">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={handleQrUpload}
+                                    className="hidden" 
+                                    id="qr-upload-file" 
+                                  />
+                                  <label 
+                                    htmlFor="qr-upload-file"
+                                    className="inline-flex items-center justify-center w-full px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg text-[10px] font-bold cursor-pointer transition text-slate-700 dark:text-slate-200 select-none text-center"
+                                  >
+                                    Upload QR Code Image
+                                  </label>
+                                  {templateConfig.qrUrl !== '/payment_qr_card.png' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setTemplateConfig(prev => ({ ...prev, qrUrl: '/payment_qr_card.png' }))}
+                                      className="w-full text-center text-[9px] text-rose-450 hover:underline cursor-pointer block"
+                                    >
+                                      Reset to Default QR Card
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <label className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Or enter QR URL directly</label>
+                                <input 
+                                  type="text" 
+                                  value={templateConfig.qrUrl} 
+                                  onChange={(e) => setTemplateConfig(prev => ({ ...prev, qrUrl: e.target.value }))}
+                                  className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-1.5 px-3 text-[11px] outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                                  placeholder="e.g. /payment_qr_card.png"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -3221,10 +3357,21 @@ export default function App() {
                   </div>
 
                   {/* Right Panel: Scaled Invoice Preview */}
-                  <div className={`${modalSubTab === 'preview' ? 'flex' : 'hidden'} md:flex flex-1 overflow-y-auto p-4 md:p-8 bg-slate-950/20 items-start justify-center print:p-0 print:bg-white print:overflow-visible`}>
+                  <div 
+                    ref={previewContainerRef}
+                    className={`${modalSubTab === 'preview' ? 'flex' : 'hidden'} md:flex flex-1 overflow-y-auto p-4 md:p-8 bg-slate-950/20 items-start justify-center print:p-0 print:bg-white print:overflow-visible h-full w-full`}
+                  >
                     
                     {/* Fixed aspect sheet container. Prevents responsive vertical stack on screen. */}
-                    <div className="w-full overflow-x-auto py-2 md:py-0 flex justify-start md:justify-center print:overflow-visible">
+                    <div 
+                      className="w-full py-2 md:py-0 flex justify-center items-start origin-top transition-transform duration-200 print:transform-none print:w-full print:overflow-visible"
+                      style={{ 
+                        transform: `scale(${scaleFactor})`, 
+                        width: '780px',
+                        height: `${1250 * scaleFactor}px`,
+                        marginBottom: `${-1250 * (1 - scaleFactor)}px`
+                      }}
+                    >
                       
                       {/* Print Container Sheet - Fixed width to match A4 aspect ratio on screen */}
                       <div id="invoice-print-area" className="w-[780px] bg-white text-slate-800 shadow-xl rounded-2xl overflow-hidden border border-slate-200 print:shadow-none print:border-none print:rounded-none print:w-full shrink-0">
