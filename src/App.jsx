@@ -453,35 +453,59 @@ export default function App() {
     };
   }, [selectedInvoice, modalSubTab, showEditorSidebar]);
 
+  const resizeImage = (file, maxWidth, maxHeight, callback) => {
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const image = new Image();
+      image.onload = () => {
+        let width = image.width;
+        let height = image.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        callback(dataUrl);
+      };
+      image.src = readerEvent.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAvatarUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        showToast('⚠️ Image size must be less than 800KB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTemplateConfig(prev => ({ ...prev, avatarUrl: reader.result }));
-        showToast('📸 Photo uploaded successfully!');
-      };
-      reader.readAsDataURL(file);
+      // Compress and resize avatar image to max 256x256
+      resizeImage(file, 256, 256, (resizedDataUrl) => {
+        setTemplateConfig(prev => ({ ...prev, avatarUrl: resizedDataUrl }));
+        showToast('📸 Photo uploaded & compressed successfully!');
+      });
     }
   };
 
   const handleQrUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        showToast('⚠️ Image size must be less than 800KB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTemplateConfig(prev => ({ ...prev, qrUrl: reader.result }));
-        showToast('📱 QR Code uploaded successfully!');
-      };
-      reader.readAsDataURL(file);
+      // Compress and resize QR code image to max 512x512
+      resizeImage(file, 512, 512, (resizedDataUrl) => {
+        setTemplateConfig(prev => ({ ...prev, qrUrl: resizedDataUrl }));
+        showToast('📱 QR Code uploaded & compressed successfully!');
+      });
     }
   };
 
@@ -991,7 +1015,7 @@ export default function App() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-800 dark:text-slate-100 text-sm font-medium shadow-2xl flex items-center gap-2"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-800 dark:text-slate-100 text-sm font-medium shadow-2xl flex items-center gap-2"
           >
             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
             {toastMessage}
