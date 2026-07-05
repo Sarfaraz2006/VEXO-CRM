@@ -274,78 +274,7 @@ export default function App() {
     return seedLeadsData;
   });
 
-  const [modalSubTab, setModalSubTab] = useState('preview');
-  const [templateConfig, setTemplateConfig] = useState(() => {
-    const local = localStorage.getItem('leads_crm_template_config');
-    if (local) {
-      try { return { ...defaultTemplateConfig, ...JSON.parse(local) }; } catch (e) { console.error(e); }
-    }
-    return defaultTemplateConfig;
-  });
 
-  useEffect(() => {
-    localStorage.setItem('leads_crm_template_config', JSON.stringify(templateConfig));
-  }, [templateConfig]);
-
-  const [showEditorSidebar, setShowEditorSidebar] = useState(true);
-  const [scaleFactor, setScaleFactor] = useState(1);
-  const previewContainerRef = useRef(null);
-
-  useEffect(() => {
-    if (!selectedInvoice) return;
-    const handleResize = () => {
-      if (previewContainerRef.current) {
-        const containerWidth = previewContainerRef.current.getBoundingClientRect().width;
-        const availableWidth = containerWidth - 32;
-        if (availableWidth < 780) {
-          setScaleFactor(Math.max(0.35, availableWidth / 780));
-        } else {
-          setScaleFactor(1);
-        }
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    const timer = setTimeout(handleResize, 100);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timer);
-    };
-  }, [selectedInvoice, modalSubTab, showEditorSidebar]);
-
-  const handleAvatarUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 800 * 1024) {
-        showToast('⚠️ Image size must be less than 800KB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTemplateConfig(prev => ({ ...prev, avatarUrl: reader.result }));
-        showToast('📸 Photo uploaded successfully!');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleQrUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 800 * 1024) {
-        showToast('⚠️ Image size must be less than 800KB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTemplateConfig(prev => ({ ...prev, qrUrl: reader.result }));
-        showToast('📱 QR Code uploaded successfully!');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const [syncConfig, setSyncConfig] = useState(() => {
     const local = localStorage.getItem('leads_crm_sync_config');
@@ -481,6 +410,79 @@ export default function App() {
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  const [modalSubTab, setModalSubTab] = useState('preview');
+  const [templateConfig, setTemplateConfig] = useState(() => {
+    const local = localStorage.getItem('leads_crm_template_config');
+    if (local) {
+      try { return { ...defaultTemplateConfig, ...JSON.parse(local) }; } catch (e) { console.error(e); }
+    }
+    return defaultTemplateConfig;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('leads_crm_template_config', JSON.stringify(templateConfig));
+  }, [templateConfig]);
+
+  const [showEditorSidebar, setShowEditorSidebar] = useState(true);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const previewContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedInvoice) return;
+    const handleResize = () => {
+      if (previewContainerRef.current) {
+        const containerWidth = previewContainerRef.current.getBoundingClientRect().width;
+        const availableWidth = containerWidth - 32;
+        if (availableWidth < 780) {
+          setScaleFactor(Math.max(0.35, availableWidth / 780));
+        } else {
+          setScaleFactor(1);
+        }
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    const timer = setTimeout(handleResize, 100);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [selectedInvoice, modalSubTab, showEditorSidebar]);
+
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800 * 1024) {
+        showToast('⚠️ Image size must be less than 800KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTemplateConfig(prev => ({ ...prev, avatarUrl: reader.result }));
+        showToast('📸 Photo uploaded successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleQrUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800 * 1024) {
+        showToast('⚠️ Image size must be less than 800KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTemplateConfig(prev => ({ ...prev, qrUrl: reader.result }));
+        showToast('📱 QR Code uploaded successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // --- GOOGLE SHEETS SYNC SYNC ---
