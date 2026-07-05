@@ -29,7 +29,19 @@ import {
   Moon,
   FileText,
   DollarSign,
-  Share2
+  Share2,
+  Eye,
+  Briefcase,
+  Mail,
+  User,
+  File,
+  Shield,
+  Printer,
+  Code,
+  Video,
+  Bot,
+  Rocket,
+  Clock
 } from 'lucide-react';
 
 // Custom inline brand icon for Instagram since Lucide-react deprecated brand icons
@@ -50,7 +62,60 @@ const Instagram = (props) => (
     <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
     <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
   </svg>
+);const Linkedin = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+    <rect width="4" height="12" x="2" y="9" />
+    <circle cx="4" cy="4" r="2" />
+  </svg>
 );
+
+const Twitter = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+  </svg>
+);
+
+const Youtube = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17z" />
+    <polygon points="10 15 15 12 10 9" />
+  </svg>
+);
+
 
 import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -154,6 +219,26 @@ const CustomBarTooltip = ({ active, payload }) => {
 
 const COLORS = ['#5f5af6', '#9d4edd', '#ec4899', '#f43f5e', '#64748b'];
 
+const getInvoiceItems = (inv, projects = []) => {
+  if (inv.amount === 3500) {
+    return [
+      { id: '1', desc: 'Custom Website Development', detail: 'Complete responsive website with modern UI/UX design', qty: 1, price: 1500, icon: 'code' },
+      { id: '2', desc: 'UGC Ad Creation', detail: '3 high-converting UGC videos (15s – 30s each)', qty: 3, price: 250, icon: 'video' },
+      { id: '3', desc: 'AI Agent Development', detail: 'Custom AI agent for automation & business operations', qty: 1, price: 800, icon: 'robot' },
+      { id: '4', desc: 'Automation & Integration', detail: 'Workflow automation & third-party integrations', qty: 1, price: 400, icon: 'settings' },
+      { id: '5', desc: 'Deployment & Support', detail: 'Deployment, testing & 30 days post-launch support', qty: 1, price: 250, icon: 'rocket' }
+    ];
+  }
+  const amt = parseFloat(inv.amount || 0);
+  const devAmt = amt * 0.8;
+  const setupAmt = amt * 0.2;
+  const proj = projects.find(p => p.id === inv.project_id);
+  return [
+    { id: '1', desc: proj ? `${proj.project_name} - Main Deliverable` : 'Custom AI & Web Development Services', detail: 'End-to-end development, responsive styling and clean architecture', qty: 1, price: devAmt, icon: 'code' },
+    { id: '2', desc: 'Integration & Deployment Setup', detail: 'Cloud server hosting configuration, custom domain mapping and final testing', qty: 1, price: setupAmt, icon: 'rocket' }
+  ];
+};
+
 export default function App() {
   // --- STATE ---
   const [leads, setLeads] = useState(() => {
@@ -203,6 +288,7 @@ export default function App() {
   }, [isDarkMode]);
 
   const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -228,7 +314,19 @@ export default function App() {
     if (local) {
       try { return JSON.parse(local); } catch (e) { console.error(e); }
     }
-    return [];
+    return [
+      {
+        id: 'inv_seed_1',
+        client_name: 'Studio L',
+        project_id: '',
+        amount: 3500.00,
+        currency: 'USD',
+        status: 'Sent',
+        due_date: '2025-07-18',
+        created_date: '2025-07-04',
+        created_by: 'Sarfaraz'
+      }
+    ];
   });
   const [isAddInvoiceOpen, setIsAddInvoiceOpen] = useState(false);
   const [newInvoiceForm, setNewInvoiceForm] = useState({
@@ -1474,8 +1572,16 @@ export default function App() {
                               <td className="py-3.5 px-5 text-right flex items-center justify-end gap-1.5">
                                 <button
                                   type="button"
+                                  onClick={() => setSelectedInvoice(invoice)}
+                                  className="text-slate-500 hover:text-indigo-400 p-1.5 rounded transition duration-150 inline-flex cursor-pointer"
+                                  title="View Invoice Sheet"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleShareInvoice(invoice)}
-                                  className="text-slate-500 hover:text-indigo-400 p-1.5 rounded transition duration-150 inline-flex"
+                                  className="text-slate-500 hover:text-indigo-400 p-1.5 rounded transition duration-150 inline-flex cursor-pointer"
                                   title="Share Invoice"
                                 >
                                   <Share2 className="w-4 h-4" />
@@ -1483,7 +1589,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteInvoice(invoice.id)}
-                                  className="text-slate-500 hover:text-rose-450 p-1.5 rounded transition duration-150 inline-flex"
+                                  className="text-slate-500 hover:text-rose-450 p-1.5 rounded transition duration-150 inline-flex cursor-pointer"
                                   title="Delete Invoice"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1517,8 +1623,16 @@ export default function App() {
                             <div className="flex gap-2">
                               <button
                                 type="button"
+                                onClick={() => setSelectedInvoice(invoice)}
+                                className="text-slate-500 hover:text-indigo-400 p-1 rounded transition duration-150 cursor-pointer"
+                                title="View Invoice Sheet"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleShareInvoice(invoice)}
-                                className="text-slate-500 hover:text-indigo-400 p-1 rounded transition duration-150"
+                                className="text-slate-500 hover:text-indigo-400 p-1 rounded transition duration-150 cursor-pointer"
                                 title="Share Invoice"
                               >
                                 <Share2 className="w-4 h-4" />
@@ -1526,7 +1640,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteInvoice(invoice.id)}
-                                className="text-slate-500 hover:text-rose-400 p-1 rounded transition duration-150"
+                                className="text-slate-500 hover:text-rose-450 p-1 rounded transition duration-150 cursor-pointer"
                                 title="Delete Invoice"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -2779,6 +2893,364 @@ export default function App() {
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* INVOICE PREVIEW MODAL */}
+      <AnimatePresence>
+        {selectedInvoice && (() => {
+          const lead = leads.find(l => l.business_name === selectedInvoice.client_name);
+          const project = projects.find(p => p.id === selectedInvoice.project_id);
+          
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-black/65 backdrop-blur-xs print:p-0 print:bg-white">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative w-full max-w-4xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col my-8 max-h-[90vh] print:max-h-none print:my-0 print:border-none print:shadow-none print:rounded-none"
+              >
+                {/* Modal controls bar - NOT printed */}
+                <div className="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-white/10 shrink-0 print:hidden">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-indigo-400" />
+                    <span className="font-bold text-sm text-slate-200">Invoice Viewer & Print Console</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => window.print()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print / Save PDF</span>
+                    </button>
+                    <button 
+                      onClick={() => setSelectedInvoice(null)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable invoice sheet area on screen, full visibility in print */}
+                <div className="overflow-y-auto flex-1 p-6 md:p-10 bg-slate-100 dark:bg-slate-950 print:p-0 print:bg-white print:overflow-visible">
+                  {/* Print Container Sheet */}
+                  <div id="invoice-print-area" className="w-full max-w-3xl mx-auto bg-white text-slate-800 shadow-xl rounded-2xl overflow-hidden border border-slate-200 print:shadow-none print:border-none print:rounded-none print:mx-0 print:w-full">
+                    
+                    {/* Header Section */}
+                    <div className="bg-gradient-to-r from-slate-950 via-[#0d0b26] to-slate-900 text-white p-8 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      {/* Decorative circles */}
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                      <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                      
+                      <div className="flex items-center gap-4 z-10">
+                        <img 
+                          src="/sarfaraz_avatar.png" 
+                          alt="Sarfaraz Ahmad" 
+                          className="w-20 h-20 rounded-full border-2 border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.35)] object-cover bg-slate-800"
+                        />
+                        <div>
+                          <h1 className="text-2xl font-black tracking-widest bg-gradient-to-r from-white via-slate-105 to-purple-300 bg-clip-text text-transparent">VEXOTEAMX</h1>
+                          <p className="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-0.5">AI Automation &bull; Web Development &bull; UGC Ads &bull; AI Agents</p>
+                          
+                          <div className="mt-2.5 flex flex-col">
+                            <span className="font-['Caveat',_cursive] text-2xl text-indigo-300 leading-none">Sarfaraz Ahmad</span>
+                            <span className="text-[9px] text-slate-500 font-mono tracking-wider">Founder & CEO, VexoteamX</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Invoice ID Metadata */}
+                      <div className="z-10 bg-slate-900/60 border border-white/5 rounded-xl p-4 min-w-[190px] text-left md:text-right shrink-0">
+                        <span className="block text-[9px] font-mono tracking-widest text-indigo-300 uppercase font-bold">Invoice No.</span>
+                        <span className="block text-lg font-bold font-mono text-slate-100 mt-0.5">
+                          INV-{selectedInvoice.created_date ? selectedInvoice.created_date.replace(/-/g, '') : '20250704'}-{selectedInvoice.id.split('_')[1]?.slice(-4) || '1024'}
+                        </span>
+                        
+                        {/* Barcode Mockup */}
+                        <div className="flex gap-[1.5px] items-stretch justify-start md:justify-end h-8 mt-3.5 opacity-60">
+                          {[1, 3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 1, 2, 1, 3, 2, 1].map((w, idx) => (
+                            <div key={idx} className="bg-white" style={{ width: `${w}px` }}></div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Lower details row inside header */}
+                      <div className="w-full border-t border-white/10 mt-6 pt-4 flex flex-wrap gap-x-6 gap-y-2 text-slate-300 text-[10px] font-mono z-10">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          <span>hello@vexoteamx.com</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          <span>www.vexoteamx.com</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          <span>India &bull; Serving Clients Worldwide</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Billing Info Columns */}
+                    <div className="p-8 bg-white grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Bill To */}
+                      <div>
+                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Bill To</span>
+                        <div className="space-y-2.5 text-xs text-slate-605">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 rounded bg-slate-100"><User className="w-3.5 h-3.5 text-indigo-500" /></div>
+                            <span className="font-bold text-slate-900">{selectedInvoice.client_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 rounded bg-slate-100"><Briefcase className="w-3.5 h-3.5 text-slate-500" /></div>
+                            <span>{lead?.category ? `${lead.category.charAt(0).toUpperCase() + lead.category.slice(1)} Partner` : 'Premium Client'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 rounded bg-slate-100"><Building2 className="w-3.5 h-3.5 text-slate-500" /></div>
+                            <span>{selectedInvoice.client_name} LLC</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="p-1 rounded bg-slate-100 mt-0.5"><MapPin className="w-3.5 h-3.5 text-slate-500" /></div>
+                            <span className="leading-tight text-slate-500">{lead?.address || '123 Business Avenue, Suite 500, New York, NY 10001, USA'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 rounded bg-slate-100"><Mail className="w-3.5 h-3.5 text-slate-500" /></div>
+                            <span>{lead?.instagram_handle ? `${lead.instagram_handle.toLowerCase()}@instagram` : `contact@${selectedInvoice.client_name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'client'}.com`}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 rounded bg-slate-100"><Phone className="w-3.5 h-3.5 text-slate-500" /></div>
+                            <span className="font-mono text-slate-550">{lead?.phone || '+1 (212) 555-3421'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Thank You Box */}
+                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+                        <div className="absolute -top-3 left-1 text-indigo-500/10 text-7xl font-serif select-none pointer-events-none">&ldquo;</div>
+                        <div className="z-10 mt-2">
+                          <h4 className="text-xs font-bold text-indigo-650 mb-1">Thank You!</h4>
+                          <p className="text-[11px] text-slate-500 leading-relaxed italic">
+                            We appreciate your trust in VexoteamX. We look forward to building more together.
+                          </p>
+                        </div>
+                        <div className="border-t border-slate-200/60 pt-2 mt-4 z-10">
+                          <div className="font-['Caveat',_cursive] text-2xl text-indigo-600 leading-none">Sarfaraz Ahmad</div>
+                          <div className="text-[9px] text-slate-400 font-mono mt-0.5">Founder & CEO, VexoteamX</div>
+                        </div>
+                      </div>
+
+                      {/* Invoice details */}
+                      <div className="space-y-3 text-xs">
+                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Invoice Details</span>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Invoice Date</span>
+                            <span className="font-mono font-semibold text-slate-700">{selectedInvoice.created_date || '—'}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Due Date</span>
+                            <span className="font-mono font-semibold text-slate-700">{selectedInvoice.due_date || 'Immediate'}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Payment Terms</span>
+                            <span className="font-semibold text-slate-700">14 Days</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5" /> Currency</span>
+                            <span className="font-semibold text-slate-700 font-mono">{selectedInvoice.currency || 'USD'}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><File className="w-3.5 h-3.5" /> PO / Reference</span>
+                            <span className="font-semibold text-slate-700">—</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table of Items */}
+                    <div className="px-8 pb-4">
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[#0c0b24] text-white text-[9.5px] font-mono tracking-wider uppercase">
+                              <th className="py-3 px-4 text-center w-12">#</th>
+                              <th className="py-3 px-4">Description</th>
+                              <th className="py-3 px-4 text-center w-20">Quantity</th>
+                              <th className="py-3 px-4 text-right w-28">Unit Price</th>
+                              <th className="py-3 px-4 text-right w-28">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-[11px] text-slate-650 bg-white">
+                            {getInvoiceItems(selectedInvoice, projects).map((item, idx) => {
+                              let IconComponent = Code;
+                              if (item.icon === 'code') IconComponent = Code;
+                              else if (item.icon === 'video') IconComponent = Video;
+                              else if (item.icon === 'robot') IconComponent = Bot;
+                              else if (item.icon === 'settings') IconComponent = Settings;
+                              else if (item.icon === 'rocket') IconComponent = Rocket;
+
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50/50">
+                                  <td className="py-3.5 px-4 text-center font-bold text-indigo-650 font-mono">{String(idx + 1).padStart(2, '0')}</td>
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500">
+                                        <IconComponent className="w-4 h-4" />
+                                      </div>
+                                      <div>
+                                        <div className="font-bold text-slate-900 text-xs">{item.desc}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">{item.detail}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-4 text-center font-mono">{item.qty}</td>
+                                  <td className="py-3.5 px-4 text-right font-mono">
+                                    {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                    {item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                                    {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                    {(item.price * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Totals Box */}
+                    <div className="px-8 pb-8 pt-2 flex justify-end">
+                      <div className="w-80 space-y-2 text-xs text-slate-600">
+                        <div className="flex justify-between items-center py-1">
+                          <span>SUBTOTAL</span>
+                          <span className="font-mono font-bold">
+                            {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                            {parseFloat(selectedInvoice.amount === 3500 ? 3700 : selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 text-indigo-600 font-semibold">
+                          <span>DISCOUNT</span>
+                          <span className="font-mono font-bold">
+                            {selectedInvoice.currency === 'INR' ? '-₹' : '-$'}
+                            {parseFloat(selectedInvoice.amount === 3500 ? 200 : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span>TAX (0%)</span>
+                          <span className="font-mono">$0.00</span>
+                        </div>
+                        
+                        <div className="bg-[#0c0b24] text-white px-5 py-3 rounded-xl font-bold font-mono text-xs tracking-wider flex items-center justify-between mt-2.5">
+                          <span>TOTAL DUE</span>
+                          <span className="text-sm font-black">
+                            {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                            {parseFloat(selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedInvoice.currency || 'USD'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Payment details & Notes & QR Code */}
+                    <div className="px-8 pb-8 border-t border-slate-100 pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Payment Details</span>
+                        <div className="space-y-2 text-xs text-slate-600 font-mono">
+                          <div className="flex justify-between py-0.5 border-b border-slate-50">
+                            <span className="text-slate-400">Bank Name:</span>
+                            <span className="font-semibold text-slate-700">Wise (TransferWise)</span>
+                          </div>
+                          <div className="flex justify-between py-0.5 border-b border-slate-50">
+                            <span className="text-slate-400">Account Name:</span>
+                            <span className="font-semibold text-slate-700">VexoteamX</span>
+                          </div>
+                          <div className="flex justify-between py-0.5 border-b border-slate-50">
+                            <span className="text-slate-400">Account No:</span>
+                            <span className="font-semibold text-slate-700">8310 0002 4567 8910</span>
+                          </div>
+                          <div className="flex justify-between py-0.5 border-b border-slate-50">
+                            <span className="text-slate-400">Routing (ABA):</span>
+                            <span className="font-semibold text-slate-700">026073008</span>
+                          </div>
+                          <div className="flex justify-between py-0.5 border-b border-slate-50">
+                            <span className="text-slate-400">SWIFT / BIC:</span>
+                            <span className="font-semibold text-slate-700">TRWIBEB1XXX</span>
+                          </div>
+                          <div className="flex justify-between py-0.5">
+                            <span className="text-slate-400">PayPal:</span>
+                            <span className="font-semibold text-slate-700">payments@vexoteamx.com</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Notes</span>
+                        <div className="space-y-3 text-xs text-slate-500 leading-relaxed">
+                          <p>
+                            Thank you for choosing VexoteamX. We are committed to delivering excellence and driving real results for your business.
+                          </p>
+                          <p>
+                            If you have any questions, feel free to reach out to us.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-center md:justify-end items-start">
+                        <img 
+                          src="/payment_qr_card.png" 
+                          alt="Scan to Pay" 
+                          className="w-[210px] h-auto rounded-xl shadow-lg border border-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom Dark Footer */}
+                    <div className="bg-[#0c0b24] text-white px-8 py-5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+                      <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>On-Time Delivery</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Clear Communication</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Premium Quality</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>100% Client Satisfaction</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-center md:items-end gap-1.5">
+                        <div className="font-bold tracking-widest text-[10px]">VEXOTEAMX</div>
+                        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[10px] text-slate-400 font-mono">
+                          <span>+91 87951 75243</span>
+                          <span>hello@vexoteamx.com</span>
+                          <span>www.vexoteamx.com</span>
+                        </div>
+                        {/* Social Icons Mock */}
+                        <div className="flex gap-2.5 mt-1 text-slate-400">
+                          <Linkedin className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
+                          <Instagram className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
+                          <Twitter className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
+                          <Youtube className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
