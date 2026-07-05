@@ -239,6 +239,31 @@ const getInvoiceItems = (inv, projects = []) => {
   ];
 };
 
+const defaultTemplateConfig = {
+  founderName: 'Sarfaraz Ahmad',
+  founderRole: 'Founder & CEO, VexoteamX',
+  brandName: 'VEXOTEAMX',
+  brandTagline: 'AI Automation • Web Development • UGC Ads • AI Agents',
+  email: 'hello@vexoteamx.com',
+  website: 'www.vexoteamx.com',
+  location: 'India • Serving Clients Worldwide',
+  phone: '+91 87951 75243',
+  avatarUrl: '/sarfaraz_avatar.png',
+  showBarcode: true,
+  showQrCode: true,
+  showPaymentDetails: true,
+  showNotes: true,
+  showSignature: true,
+  bankName: 'Wise (TransferWise)',
+  accountName: 'VexoteamX',
+  accountNumber: '8310 0002 4567 8910',
+  routingABA: '026073008',
+  swiftBIC: 'TRWIBEB1XXX',
+  paypal: 'payments@vexoteamx.com',
+  qrUrl: '/payment_qr_card.png',
+  notesText: 'Thank you for choosing VexoteamX. We are committed to delivering excellence and driving real results for your business.\n\nIf you have any questions, feel free to reach out to us.'
+};
+
 export default function App() {
   // --- STATE ---
   const [leads, setLeads] = useState(() => {
@@ -248,6 +273,19 @@ export default function App() {
     }
     return seedLeadsData;
   });
+
+  const [modalSubTab, setModalSubTab] = useState('preview');
+  const [templateConfig, setTemplateConfig] = useState(() => {
+    const local = localStorage.getItem('leads_crm_template_config');
+    if (local) {
+      try { return { ...defaultTemplateConfig, ...JSON.parse(local) }; } catch (e) { console.error(e); }
+    }
+    return defaultTemplateConfig;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('leads_crm_template_config', JSON.stringify(templateConfig));
+  }, [templateConfig]);
 
   const [syncConfig, setSyncConfig] = useState(() => {
     const local = localStorage.getItem('leads_crm_sync_config');
@@ -2902,18 +2940,18 @@ export default function App() {
           const project = projects.find(p => p.id === selectedInvoice.project_id);
           
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-black/65 backdrop-blur-xs print:p-0 print:bg-white">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 overflow-hidden bg-black/75 backdrop-blur-xs print:p-0 print:bg-white">
               <motion.div 
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-full max-w-4xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col my-8 max-h-[90vh] print:max-h-none print:my-0 print:border-none print:shadow-none print:rounded-none"
+                className="relative w-full max-w-6xl bg-slate-900 border border-white/10 rounded-none md:rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col h-full md:h-[92vh] print:h-auto print:max-h-none print:my-0 print:border-none print:shadow-none print:rounded-none"
               >
                 {/* Modal controls bar - NOT printed */}
                 <div className="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-white/10 shrink-0 print:hidden">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-400" />
-                    <span className="font-bold text-sm text-slate-200">Invoice Viewer & Print Console</span>
+                    <span className="font-bold text-sm text-slate-200">Interactive Invoice Builder</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
@@ -2932,315 +2970,577 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Scrollable invoice sheet area on screen, full visibility in print */}
-                <div className="overflow-y-auto flex-1 p-6 md:p-10 bg-slate-100 dark:bg-slate-950 print:p-0 print:bg-white print:overflow-visible">
-                  {/* Print Container Sheet */}
-                  <div id="invoice-print-area" className="w-full max-w-3xl mx-auto bg-white text-slate-800 shadow-xl rounded-2xl overflow-hidden border border-slate-200 print:shadow-none print:border-none print:rounded-none print:mx-0 print:w-full">
+                {/* Mobile Sub-Tab switcher - hidden on desktop, print:hidden */}
+                <div className="flex md:hidden bg-slate-950 border-b border-white/10 shrink-0 print:hidden text-xs">
+                  <button 
+                    onClick={() => setModalSubTab('preview')}
+                    className={`flex-1 py-3 text-center font-bold uppercase tracking-wider ${modalSubTab === 'preview' ? 'text-indigo-400 border-b-2 border-indigo-500 bg-white/5' : 'text-slate-405'}`}
+                  >
+                    View Invoice Sheet
+                  </button>
+                  <button 
+                    onClick={() => setModalSubTab('edit')}
+                    className={`flex-1 py-3 text-center font-bold uppercase tracking-wider ${modalSubTab === 'edit' ? 'text-indigo-400 border-b-2 border-indigo-500 bg-white/5' : 'text-slate-405'}`}
+                  >
+                    Edit Template Details
+                  </button>
+                </div>
+
+                {/* Main Content Panels: Left (Editor), Right (Fidelity Preview) */}
+                <div className="flex flex-1 overflow-hidden print:overflow-visible">
+                  
+                  {/* Left Panel: Configuration Form */}
+                  <div className={`${modalSubTab === 'edit' ? 'block' : 'hidden'} md:block w-full md:w-80 lg:w-[350px] border-r border-slate-200 dark:border-white/10 overflow-y-auto p-5 print:hidden bg-slate-50 dark:bg-[#0c0e12] shrink-0`}>
+                    <h3 className="text-xs font-extrabold text-indigo-400 uppercase tracking-widest mb-4">Template Customizer</h3>
                     
-                    {/* Header Section */}
-                    <div className="bg-gradient-to-r from-slate-950 via-[#0d0b26] to-slate-900 text-white p-8 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                      {/* Decorative circles */}
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                      <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="space-y-5 text-slate-700 dark:text-slate-300 text-xs">
                       
-                      <div className="flex items-center gap-4 z-10">
-                        <img 
-                          src="/sarfaraz_avatar.png" 
-                          alt="Sarfaraz Ahmad" 
-                          className="w-20 h-20 rounded-full border-2 border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.35)] object-cover bg-slate-800"
-                        />
+                      {/* Section 1: Header Info */}
+                      <div className="space-y-3.5">
+                        <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1">Branding & Header</span>
                         <div>
-                          <h1 className="text-2xl font-black tracking-widest bg-gradient-to-r from-white via-slate-105 to-purple-300 bg-clip-text text-transparent">VEXOTEAMX</h1>
-                          <p className="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-0.5">AI Automation &bull; Web Development &bull; UGC Ads &bull; AI Agents</p>
-                          
-                          <div className="mt-2.5 flex flex-col">
-                            <span className="font-['Caveat',_cursive] text-2xl text-indigo-300 leading-none">Sarfaraz Ahmad</span>
-                            <span className="text-[9px] text-slate-500 font-mono tracking-wider">Founder & CEO, VexoteamX</span>
-                          </div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Company / Brand Name</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.brandName} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, brandName: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Brand Tagline</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.brandTagline} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, brandTagline: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Founder / CEO Name</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.founderName} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, founderName: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Founder Role Description</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.founderRole} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, founderRole: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Contact Email</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.email} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, email: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Contact Website</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.website} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, website: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Contact Phone</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.phone} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, phone: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Contact Location / Details</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.location} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, location: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Avatar Image URL / Path</label>
+                          <input 
+                            type="text" 
+                            value={templateConfig.avatarUrl} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, avatarUrl: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                          />
                         </div>
                       </div>
 
-                      {/* Invoice ID Metadata */}
-                      <div className="z-10 bg-slate-900/60 border border-white/5 rounded-xl p-4 min-w-[190px] text-left md:text-right shrink-0">
-                        <span className="block text-[9px] font-mono tracking-widest text-indigo-300 uppercase font-bold">Invoice No.</span>
-                        <span className="block text-lg font-bold font-mono text-slate-100 mt-0.5">
-                          INV-{selectedInvoice.created_date ? selectedInvoice.created_date.replace(/-/g, '') : '20250704'}-{selectedInvoice.id.split('_')[1]?.slice(-4) || '1024'}
-                        </span>
+                      {/* Section 2: Toggle Visibility */}
+                      <div className="space-y-2">
+                        <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1">Visible Layout Blocks</span>
                         
-                        {/* Barcode Mockup */}
-                        <div className="flex gap-[1.5px] items-stretch justify-start md:justify-end h-8 mt-3.5 opacity-60">
-                          {[1, 3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 1, 2, 1, 3, 2, 1].map((w, idx) => (
-                            <div key={idx} className="bg-white" style={{ width: `${w}px` }}></div>
-                          ))}
-                        </div>
+                        <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={templateConfig.showBarcode} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, showBarcode: e.target.checked }))}
+                            className="rounded border-slate-300 dark:border-white/10 text-indigo-500 focus:ring-0 w-4 h-4 bg-slate-100 dark:bg-slate-900"
+                          />
+                          <span>Show Header Barcode</span>
+                        </label>
+                        <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={templateConfig.showSignature} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, showSignature: e.target.checked }))}
+                            className="rounded border-slate-300 dark:border-white/10 text-indigo-500 focus:ring-0 w-4 h-4 bg-slate-100 dark:bg-slate-900"
+                          />
+                          <span>Show Thank You & Signature</span>
+                        </label>
+                        <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={templateConfig.showPaymentDetails} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, showPaymentDetails: e.target.checked }))}
+                            className="rounded border-slate-300 dark:border-white/10 text-indigo-500 focus:ring-0 w-4 h-4 bg-slate-100 dark:bg-slate-900"
+                          />
+                          <span>Show Bank / Payment Details</span>
+                        </label>
+                        <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={templateConfig.showNotes} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, showNotes: e.target.checked }))}
+                            className="rounded border-slate-300 dark:border-white/10 text-indigo-500 focus:ring-0 w-4 h-4 bg-slate-100 dark:bg-slate-900"
+                          />
+                          <span>Show General Notes Block</span>
+                        </label>
+                        <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={templateConfig.showQrCode} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, showQrCode: e.target.checked }))}
+                            className="rounded border-slate-300 dark:border-white/10 text-indigo-500 focus:ring-0 w-4 h-4 bg-slate-100 dark:bg-slate-900"
+                          />
+                          <span>Show "Scan to Pay" QR Card</span>
+                        </label>
                       </div>
 
-                      {/* Lower details row inside header */}
-                      <div className="w-full border-t border-white/10 mt-6 pt-4 flex flex-wrap gap-x-6 gap-y-2 text-slate-300 text-[10px] font-mono z-10">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                          <span>hello@vexoteamx.com</span>
+                      {/* Section 3: Bank Details */}
+                      {templateConfig.showPaymentDetails && (
+                        <div className="space-y-3.5">
+                          <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1">Payment Details</span>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Bank Name</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.bankName} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, bankName: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Account Name</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.accountName} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, accountName: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Account Number</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.accountNumber} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, accountNumber: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">Routing (ABA / IFSC)</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.routingABA} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, routingABA: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">SWIFT / BIC Code</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.swiftBIC} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, swiftBIC: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">PayPal Email</label>
+                            <input 
+                              type="text" 
+                              value={templateConfig.paypal} 
+                              onChange={(e) => setTemplateConfig(prev => ({ ...prev, paypal: e.target.value }))}
+                              className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          {templateConfig.showQrCode && (
+                            <div>
+                              <label className="block text-[10px] text-slate-400 uppercase font-mono mb-1">QR Code Card Image URL</label>
+                              <input 
+                                type="text" 
+                                value={templateConfig.qrUrl} 
+                                onChange={(e) => setTemplateConfig(prev => ({ ...prev, qrUrl: e.target.value }))}
+                                className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 font-mono text-slate-800 dark:text-slate-200"
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                          <span>www.vexoteamx.com</span>
+                      )}
+
+                      {/* Section 4: Notes Text */}
+                      {templateConfig.showNotes && (
+                        <div>
+                          <span className="block text-[10px] font-mono tracking-widest text-slate-450 dark:text-slate-500 uppercase font-bold border-b border-slate-200 dark:border-white/5 pb-1 mb-2">Custom Note Message</span>
+                          <textarea 
+                            rows="4"
+                            value={templateConfig.notesText} 
+                            onChange={(e) => setTemplateConfig(prev => ({ ...prev, notesText: e.target.value }))}
+                            className="w-full bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-505/50 leading-relaxed font-sans text-slate-800 dark:text-slate-200"
+                          />
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                          <span>India &bull; Serving Clients Worldwide</span>
-                        </div>
-                      </div>
+                      )}
+
                     </div>
+                  </div>
 
-                    {/* Billing Info Columns */}
-                    <div className="p-8 bg-white grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Bill To */}
-                      <div>
-                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Bill To</span>
-                        <div className="space-y-2.5 text-xs text-slate-605">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded bg-slate-100"><User className="w-3.5 h-3.5 text-indigo-500" /></div>
-                            <span className="font-bold text-slate-900">{selectedInvoice.client_name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded bg-slate-100"><Briefcase className="w-3.5 h-3.5 text-slate-500" /></div>
-                            <span>{lead?.category ? `${lead.category.charAt(0).toUpperCase() + lead.category.slice(1)} Partner` : 'Premium Client'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded bg-slate-100"><Building2 className="w-3.5 h-3.5 text-slate-500" /></div>
-                            <span>{selectedInvoice.client_name} LLC</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <div className="p-1 rounded bg-slate-100 mt-0.5"><MapPin className="w-3.5 h-3.5 text-slate-500" /></div>
-                            <span className="leading-tight text-slate-500">{lead?.address || '123 Business Avenue, Suite 500, New York, NY 10001, USA'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded bg-slate-100"><Mail className="w-3.5 h-3.5 text-slate-500" /></div>
-                            <span>{lead?.instagram_handle ? `${lead.instagram_handle.toLowerCase()}@instagram` : `contact@${selectedInvoice.client_name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'client'}.com`}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded bg-slate-100"><Phone className="w-3.5 h-3.5 text-slate-500" /></div>
-                            <span className="font-mono text-slate-550">{lead?.phone || '+1 (212) 555-3421'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Thank You Box */}
-                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
-                        <div className="absolute -top-3 left-1 text-indigo-500/10 text-7xl font-serif select-none pointer-events-none">&ldquo;</div>
-                        <div className="z-10 mt-2">
-                          <h4 className="text-xs font-bold text-indigo-650 mb-1">Thank You!</h4>
-                          <p className="text-[11px] text-slate-500 leading-relaxed italic">
-                            We appreciate your trust in VexoteamX. We look forward to building more together.
-                          </p>
-                        </div>
-                        <div className="border-t border-slate-200/60 pt-2 mt-4 z-10">
-                          <div className="font-['Caveat',_cursive] text-2xl text-indigo-600 leading-none">Sarfaraz Ahmad</div>
-                          <div className="text-[9px] text-slate-400 font-mono mt-0.5">Founder & CEO, VexoteamX</div>
-                        </div>
-                      </div>
-
-                      {/* Invoice details */}
-                      <div className="space-y-3 text-xs">
-                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Invoice Details</span>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Invoice Date</span>
-                            <span className="font-mono font-semibold text-slate-700">{selectedInvoice.created_date || '—'}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Due Date</span>
-                            <span className="font-mono font-semibold text-slate-700">{selectedInvoice.due_date || 'Immediate'}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Payment Terms</span>
-                            <span className="font-semibold text-slate-700">14 Days</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5" /> Currency</span>
-                            <span className="font-semibold text-slate-700 font-mono">{selectedInvoice.currency || 'USD'}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1">
-                            <span className="text-slate-400 font-medium flex items-center gap-1.5"><File className="w-3.5 h-3.5" /> PO / Reference</span>
-                            <span className="font-semibold text-slate-700">—</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Table of Items */}
-                    <div className="px-8 pb-4">
-                      <div className="border border-slate-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-[#0c0b24] text-white text-[9.5px] font-mono tracking-wider uppercase">
-                              <th className="py-3 px-4 text-center w-12">#</th>
-                              <th className="py-3 px-4">Description</th>
-                              <th className="py-3 px-4 text-center w-20">Quantity</th>
-                              <th className="py-3 px-4 text-right w-28">Unit Price</th>
-                              <th className="py-3 px-4 text-right w-28">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-150 text-[11px] text-slate-650 bg-white">
-                            {getInvoiceItems(selectedInvoice, projects).map((item, idx) => {
-                              let IconComponent = Code;
-                              if (item.icon === 'code') IconComponent = Code;
-                              else if (item.icon === 'video') IconComponent = Video;
-                              else if (item.icon === 'robot') IconComponent = Bot;
-                              else if (item.icon === 'settings') IconComponent = Settings;
-                              else if (item.icon === 'rocket') IconComponent = Rocket;
-
-                              return (
-                                <tr key={item.id} className="hover:bg-slate-50/50">
-                                  <td className="py-3.5 px-4 text-center font-bold text-indigo-650 font-mono">{String(idx + 1).padStart(2, '0')}</td>
-                                  <td className="py-3.5 px-4">
-                                    <div className="flex items-center gap-3">
-                                      <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500">
-                                        <IconComponent className="w-4 h-4" />
-                                      </div>
-                                      <div>
-                                        <div className="font-bold text-slate-900 text-xs">{item.desc}</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">{item.detail}</div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="py-3.5 px-4 text-center font-mono">{item.qty}</td>
-                                  <td className="py-3.5 px-4 text-right font-mono">
-                                    {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                                    {item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                  <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                                    {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                                    {(item.price * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Totals Box */}
-                    <div className="px-8 pb-8 pt-2 flex justify-end">
-                      <div className="w-80 space-y-2 text-xs text-slate-600">
-                        <div className="flex justify-between items-center py-1">
-                          <span>SUBTOTAL</span>
-                          <span className="font-mono font-bold">
-                            {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                            {parseFloat(selectedInvoice.amount === 3500 ? 3700 : selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center py-1 text-indigo-600 font-semibold">
-                          <span>DISCOUNT</span>
-                          <span className="font-mono font-bold">
-                            {selectedInvoice.currency === 'INR' ? '-₹' : '-$'}
-                            {parseFloat(selectedInvoice.amount === 3500 ? 200 : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span>TAX (0%)</span>
-                          <span className="font-mono">$0.00</span>
-                        </div>
-                        
-                        <div className="bg-[#0c0b24] text-white px-5 py-3 rounded-xl font-bold font-mono text-xs tracking-wider flex items-center justify-between mt-2.5">
-                          <span>TOTAL DUE</span>
-                          <span className="text-sm font-black">
-                            {selectedInvoice.currency === 'INR' ? '₹' : '$'}
-                            {parseFloat(selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedInvoice.currency || 'USD'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer Payment details & Notes & QR Code */}
-                    <div className="px-8 pb-8 border-t border-slate-100 pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Payment Details</span>
-                        <div className="space-y-2 text-xs text-slate-600 font-mono">
-                          <div className="flex justify-between py-0.5 border-b border-slate-50">
-                            <span className="text-slate-400">Bank Name:</span>
-                            <span className="font-semibold text-slate-700">Wise (TransferWise)</span>
-                          </div>
-                          <div className="flex justify-between py-0.5 border-b border-slate-50">
-                            <span className="text-slate-400">Account Name:</span>
-                            <span className="font-semibold text-slate-700">VexoteamX</span>
-                          </div>
-                          <div className="flex justify-between py-0.5 border-b border-slate-50">
-                            <span className="text-slate-400">Account No:</span>
-                            <span className="font-semibold text-slate-700">8310 0002 4567 8910</span>
-                          </div>
-                          <div className="flex justify-between py-0.5 border-b border-slate-50">
-                            <span className="text-slate-400">Routing (ABA):</span>
-                            <span className="font-semibold text-slate-700">026073008</span>
-                          </div>
-                          <div className="flex justify-between py-0.5 border-b border-slate-50">
-                            <span className="text-slate-400">SWIFT / BIC:</span>
-                            <span className="font-semibold text-slate-700">TRWIBEB1XXX</span>
-                          </div>
-                          <div className="flex justify-between py-0.5">
-                            <span className="text-slate-400">PayPal:</span>
-                            <span className="font-semibold text-slate-700">payments@vexoteamx.com</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Notes</span>
-                        <div className="space-y-3 text-xs text-slate-500 leading-relaxed">
-                          <p>
-                            Thank you for choosing VexoteamX. We are committed to delivering excellence and driving real results for your business.
-                          </p>
-                          <p>
-                            If you have any questions, feel free to reach out to us.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-center md:justify-end items-start">
-                        <img 
-                          src="/payment_qr_card.png" 
-                          alt="Scan to Pay" 
-                          className="w-[210px] h-auto rounded-xl shadow-lg border border-slate-200"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Bottom Dark Footer */}
-                    <div className="bg-[#0c0b24] text-white px-8 py-5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-                      <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-slate-400">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>On-Time Delivery</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Clear Communication</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Premium Quality</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>100% Client Satisfaction</span>
-                        </div>
-                      </div>
+                  {/* Right Panel: Scaled Invoice Preview */}
+                  <div className={`${modalSubTab === 'preview' ? 'flex' : 'hidden'} md:flex flex-1 overflow-y-auto p-4 md:p-8 bg-slate-950/20 items-start justify-center print:p-0 print:bg-white print:overflow-visible`}>
+                    
+                    {/* Fixed aspect sheet container. Prevents responsive vertical stack on screen. */}
+                    <div className="w-full overflow-x-auto py-2 md:py-0 flex justify-start md:justify-center print:overflow-visible">
                       
-                      <div className="flex flex-col items-center md:items-end gap-1.5">
-                        <div className="font-bold tracking-widest text-[10px]">VEXOTEAMX</div>
-                        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[10px] text-slate-400 font-mono">
-                          <span>+91 87951 75243</span>
-                          <span>hello@vexoteamx.com</span>
-                          <span>www.vexoteamx.com</span>
+                      {/* Print Container Sheet - Fixed width to match A4 aspect ratio on screen */}
+                      <div id="invoice-print-area" className="w-[780px] bg-white text-slate-800 shadow-xl rounded-2xl overflow-hidden border border-slate-200 print:shadow-none print:border-none print:rounded-none print:w-full shrink-0">
+                        
+                        {/* Header Section */}
+                        <div className="bg-gradient-to-r from-slate-950 via-[#0d0b26] to-slate-900 text-white p-8 relative overflow-hidden flex justify-between items-center gap-6">
+                          {/* Decorative circles */}
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                          <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                          
+                          <div className="flex items-center gap-4.5 z-10">
+                            {templateConfig.avatarUrl && (
+                              <img 
+                                src={templateConfig.avatarUrl} 
+                                alt={templateConfig.founderName} 
+                                className="w-20 h-20 rounded-full border-2 border-purple-500/80 shadow-[0_0_15px_rgba(168,85,247,0.35)] object-cover bg-slate-800"
+                              />
+                            )}
+                            <div>
+                              <h1 className="text-2xl font-black tracking-widest bg-gradient-to-r from-white via-slate-100 to-purple-300 bg-clip-text text-transparent">{templateConfig.brandName}</h1>
+                              <p className="text-[8.5px] uppercase tracking-widest text-slate-405 font-bold mt-0.5">{templateConfig.brandTagline}</p>
+                              
+                              <div className="mt-2.5 flex flex-col">
+                                <span className="font-['Caveat',_cursive] text-2xl text-indigo-300 leading-none">{templateConfig.founderName}</span>
+                                <span className="text-[9px] text-slate-500 font-mono tracking-wider">{templateConfig.founderRole}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Invoice ID Metadata */}
+                          <div className="z-10 bg-slate-900/60 border border-white/5 rounded-xl p-4 min-w-[190px] text-right shrink-0">
+                            <span className="block text-[9px] font-mono tracking-widest text-indigo-300 uppercase font-bold">Invoice No.</span>
+                            <span className="block text-lg font-bold font-mono text-slate-100 mt-0.5">
+                              INV-{selectedInvoice.created_date ? selectedInvoice.created_date.replace(/-/g, '') : '20250704'}-{selectedInvoice.id.split('_')[1]?.slice(-4) || '1024'}
+                            </span>
+                            
+                            {/* Barcode Mockup */}
+                            {templateConfig.showBarcode && (
+                              <div className="flex gap-[1.5px] items-stretch justify-end h-8 mt-3.5 opacity-60">
+                                {[1, 3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 1, 2, 1, 3, 2, 1].map((w, idx) => (
+                                  <div key={idx} className="bg-white" style={{ width: `${w}px` }}></div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Lower details row inside header */}
+                          <div className="w-full border-t border-white/10 mt-6 pt-4 flex flex-wrap gap-x-6 gap-y-2 text-slate-300 text-[10px] font-mono z-10">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                              <span>{templateConfig.email}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                              <span>{templateConfig.website}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                              <span>{templateConfig.location}</span>
+                            </div>
+                          </div>
                         </div>
-                        {/* Social Icons Mock */}
-                        <div className="flex gap-2.5 mt-1 text-slate-400">
-                          <Linkedin className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
-                          <Instagram className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
-                          <Twitter className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
-                          <Youtube className="w-3.5 h-3.5 hover:text-white cursor-pointer" />
+
+                        {/* Billing Info Columns */}
+                        <div className="p-8 bg-white grid grid-cols-3 gap-6">
+                          {/* Bill To */}
+                          <div className="col-span-1">
+                            <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3 border-b border-slate-100 pb-1">Bill To</span>
+                            <div className="space-y-2.5 text-[11px] text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0"><User className="w-3.5 h-3.5 text-indigo-500" /></div>
+                                <span className="font-bold text-slate-900 truncate">{selectedInvoice.client_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0"><Briefcase className="w-3.5 h-3.5 text-slate-500" /></div>
+                                <span className="truncate">{lead?.category ? `${lead.category.charAt(0).toUpperCase() + lead.category.slice(1)} Partner` : 'Premium Client'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0"><Building2 className="w-3.5 h-3.5 text-slate-500" /></div>
+                                <span className="truncate">{selectedInvoice.client_name} LLC</span>
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0 mt-0.5"><MapPin className="w-3.5 h-3.5 text-slate-500" /></div>
+                                <span className="leading-tight text-slate-500 break-words">{lead?.address || '123 Business Avenue, Suite 500, New York, NY 10001, USA'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0"><Mail className="w-3.5 h-3.5 text-slate-500" /></div>
+                                <span className="truncate">{lead?.instagram_handle ? `${lead.instagram_handle.toLowerCase()}@instagram` : `contact@${selectedInvoice.client_name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'client'}.com`}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-slate-100 shrink-0"><Phone className="w-3.5 h-3.5 text-slate-500" /></div>
+                                <span className="font-mono text-slate-550 truncate">{lead?.phone || '+1 (212) 555-3421'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Thank You Box */}
+                          <div className="col-span-1">
+                            {templateConfig.showSignature && (
+                              <div className="bg-slate-50 border border-slate-105 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between h-full min-h-[160px]">
+                                <div className="absolute -top-3 left-1 text-indigo-500/10 text-7xl font-serif select-none pointer-events-none">&ldquo;</div>
+                                <div className="z-10 mt-1">
+                                  <h4 className="text-xs font-bold text-indigo-650 mb-1">Thank You!</h4>
+                                  <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                                    We appreciate your trust in {templateConfig.brandName}. We look forward to building more together.
+                                  </p>
+                                </div>
+                                <div className="border-t border-slate-200/60 pt-2 mt-3 z-10">
+                                  <div className="font-['Caveat',_cursive] text-2xl text-indigo-600 leading-none">{templateConfig.founderName}</div>
+                                  <div className="text-[9px] text-slate-400 font-mono mt-0.5">{templateConfig.founderRole}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Invoice details */}
+                          <div className="col-span-1 space-y-3 text-[11px]">
+                            <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3 border-b border-slate-100 pb-1">Invoice Details</span>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Invoice Date</span>
+                                <span className="font-mono font-semibold text-slate-700">{selectedInvoice.created_date || '—'}</span>
+                              </div>
+                              <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                <span className="text-slate-400 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Due Date</span>
+                                <span className="font-mono font-semibold text-slate-700">{selectedInvoice.due_date || 'Immediate'}</span>
+                              </div>
+                              <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                <span className="text-slate-400 font-medium flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Payment Terms</span>
+                                <span className="font-semibold text-slate-700">14 Days</span>
+                              </div>
+                              <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                                <span className="text-slate-400 font-medium flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5" /> Currency</span>
+                                <span className="font-semibold text-slate-700 font-mono">{selectedInvoice.currency || 'USD'}</span>
+                              </div>
+                              <div className="flex justify-between items-center py-0.5">
+                                <span className="text-slate-400 font-medium flex items-center gap-1.5"><File className="w-3.5 h-3.5" /> PO / Reference</span>
+                                <span className="font-semibold text-slate-700">—</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Table of Items */}
+                        <div className="px-8 pb-4">
+                          <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-[#0c0b24] text-white text-[9.5px] font-mono tracking-wider uppercase">
+                                  <th className="py-3 px-4 text-center w-12">#</th>
+                                  <th className="py-3 px-4">Description</th>
+                                  <th className="py-3 px-4 text-center w-20">Quantity</th>
+                                  <th className="py-3 px-4 text-right w-28">Unit Price</th>
+                                  <th className="py-3 px-4 text-right w-28">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-150 text-[11px] text-slate-650 bg-white">
+                                {getInvoiceItems(selectedInvoice, projects).map((item, idx) => {
+                                  let IconComponent = Code;
+                                  if (item.icon === 'code') IconComponent = Code;
+                                  else if (item.icon === 'video') IconComponent = Video;
+                                  else if (item.icon === 'robot') IconComponent = Bot;
+                                  else if (item.icon === 'settings') IconComponent = Settings;
+                                  else if (item.icon === 'rocket') IconComponent = Rocket;
+
+                                  return (
+                                    <tr key={item.id} className="hover:bg-slate-50/50">
+                                      <td className="py-3.5 px-4 text-center font-bold text-indigo-650 font-mono">{String(idx + 1).padStart(2, '0')}</td>
+                                      <td className="py-3.5 px-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500">
+                                            <IconComponent className="w-4 h-4" />
+                                          </div>
+                                          <div>
+                                            <div className="font-bold text-slate-900 text-xs">{item.desc}</div>
+                                            <div className="text-[10px] text-slate-400 mt-0.5">{item.detail}</div>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="py-3.5 px-4 text-center font-mono">{item.qty}</td>
+                                      <td className="py-3.5 px-4 text-right font-mono">
+                                        {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                        {item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                                        {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                        {(item.price * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Totals Box */}
+                        <div className="px-8 pb-8 pt-2 flex justify-end">
+                          <div className="w-80 space-y-2 text-xs text-slate-600">
+                            <div className="flex justify-between items-center py-1">
+                              <span>SUBTOTAL</span>
+                              <span className="font-mono font-bold">
+                                {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                {parseFloat(selectedInvoice.amount === 3500 ? 3700 : selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-1 text-indigo-600 font-semibold">
+                              <span>DISCOUNT</span>
+                              <span className="font-mono font-bold">
+                                {selectedInvoice.currency === 'INR' ? '-₹' : '-$'}
+                                {parseFloat(selectedInvoice.amount === 3500 ? 200 : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-1">
+                              <span>TAX (0%)</span>
+                              <span className="font-mono">$0.00</span>
+                            </div>
+                            
+                            <div className="bg-[#0c0b24] text-white px-5 py-3 rounded-xl font-bold font-mono text-xs tracking-wider flex items-center justify-between mt-2.5">
+                              <span>TOTAL DUE</span>
+                              <span className="text-sm font-black">
+                                {selectedInvoice.currency === 'INR' ? '₹' : '$'}
+                                {parseFloat(selectedInvoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {selectedInvoice.currency || 'USD'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer Payment details & Notes & QR Code */}
+                        <div className="p-8 border-t border-slate-100 grid grid-cols-3 gap-6">
+                          
+                          {/* Payment details column */}
+                          <div className="col-span-1">
+                            {templateConfig.showPaymentDetails && (
+                              <>
+                                <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Payment Details</span>
+                                <div className="space-y-2 text-[10px] text-slate-600 font-mono">
+                                  <div className="flex justify-between py-0.5 border-b border-slate-50">
+                                    <span className="text-slate-400">Bank:</span>
+                                    <span className="font-semibold text-slate-700 truncate max-w-[120px]">{templateConfig.bankName}</span>
+                                  </div>
+                                  <div className="flex justify-between py-0.5 border-b border-slate-50">
+                                    <span className="text-slate-400">Name:</span>
+                                    <span className="font-semibold text-slate-700 truncate max-w-[120px]">{templateConfig.accountName}</span>
+                                  </div>
+                                  <div className="flex justify-between py-0.5 border-b border-slate-50">
+                                    <span className="text-slate-400">A/C No:</span>
+                                    <span className="font-semibold text-slate-700">{templateConfig.accountNumber}</span>
+                                  </div>
+                                  <div className="flex justify-between py-0.5 border-b border-slate-50">
+                                    <span className="text-slate-400">ABA/IFSC:</span>
+                                    <span className="font-semibold text-slate-700">{templateConfig.routingABA}</span>
+                                  </div>
+                                  <div className="flex justify-between py-0.5 border-b border-slate-50">
+                                    <span className="text-slate-400">SWIFT:</span>
+                                    <span className="font-semibold text-slate-700">{templateConfig.swiftBIC}</span>
+                                  </div>
+                                  <div className="flex justify-between py-0.5">
+                                    <span className="text-slate-400">PayPal:</span>
+                                    <span className="font-semibold text-slate-700 truncate max-w-[120px]">{templateConfig.paypal}</span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Notes column */}
+                          <div className="col-span-1">
+                            {templateConfig.showNotes && (
+                              <>
+                                <span className="block text-[10px] font-mono tracking-widest text-indigo-650 uppercase font-bold mb-3">Notes</span>
+                                <div className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-wrap">
+                                  {templateConfig.notesText}
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* QR Code column */}
+                          <div className="col-span-1 flex justify-end items-start">
+                            {templateConfig.showQrCode && templateConfig.qrUrl && (
+                              <img 
+                                src={templateConfig.qrUrl} 
+                                alt="Scan to Pay" 
+                                className="w-[180px] h-auto rounded-xl shadow-md border border-slate-200"
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Dark Footer */}
+                        <div className="bg-[#0c0b24] text-white px-8 py-5 flex justify-between items-center gap-4 text-xs">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-400 text-[10px]">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>On-Time Delivery</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>Clear Comms</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>Premium Quality</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col items-end gap-1 text-right">
+                            <div className="font-bold tracking-widest text-[9px]">{templateConfig.brandName}</div>
+                            <div className="flex gap-x-3 text-[9px] text-slate-400 font-mono">
+                              <span>{templateConfig.phone}</span>
+                              <span>{templateConfig.website}</span>
+                            </div>
+                          </div>
+                        </div>
+
                       </div>
                     </div>
 
@@ -3255,3 +3555,4 @@ export default function App() {
     </div>
   );
 }
+
