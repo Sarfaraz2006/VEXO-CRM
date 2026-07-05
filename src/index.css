@@ -101,33 +101,109 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 15mm 10mm 15mm;
+    margin: 10mm 15mm;
   }
   
-  /* Hide every element on the page */
-  body * {
-    visibility: hidden !important;
+  /* Hide the main dashboard app layout entirely */
+  header, 
+  main, 
+  footer, 
+  #root > div:not(.fixed), 
+  .print-hidden, 
+  button, 
+  input, 
+  textarea, 
+  select {
+    display: none !important;
   }
-  
-  /* Show only the invoice print container */
-  #invoice-print-area,
-  #invoice-print-area * {
-    visibility: visible !important;
-  }
-  
-  #invoice-print-area {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
+
+  /* Reset html/body for printing */
+  html, body {
+    width: 210mm !important;
+    height: auto !important;
+    background: white !important;
+    color: black !important;
+    overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  /* Force active modal overlay to act as a transparent full screen block */
+  .fixed.inset-0 {
+    position: absolute !important;
+    display: block !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    left: 0 !important;
+    top: 0 !important;
+    z-index: 1000 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Force modal inner relative box to fill page */
+  .fixed.inset-0 > div {
+    display: block !important;
+    position: relative !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide controls and customizer panels inside modal */
+  .fixed.inset-0 > div > div:first-child,
+  .fixed.inset-0 > div > div:nth-child(2),
+  .fixed.inset-0 > div > div:nth-child(3) > div:first-child {
+    display: none !important;
+  }
+
+  /* Reset right panel container */
+  .fixed.inset-0 > div > div:nth-child(3) > div:nth-child(2) {
+    display: block !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Force reset inline scale factors and margins */
+  .fixed.inset-0 > div > div:nth-child(3) > div:nth-child(2) > div { 
+    transform: none !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure the A4 sheet fills the print canvas */
+  #invoice-print-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
     background-color: white !important;
     color: black !important;
-    box-shadow: none !important;
+    overflow: visible !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
   }
-  
-  /* Force backgrounds to be printed */
+
+  /* Force background colors/gradients to print */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
