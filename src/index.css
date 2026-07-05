@@ -108,7 +108,6 @@ body {
   header, 
   main, 
   footer, 
-  #root > div:not(.fixed), 
   .print-hidden, 
   button, 
   input, 
