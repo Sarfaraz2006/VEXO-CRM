@@ -356,6 +356,16 @@ export default function App() {
         `${templateConfig.founderName || "Sarfaraz"}\n` +
         `Founder, ${templateConfig.brandName || "Vexo TeamX"}`
       );
+      setNewWhatsAppMessage(
+        `Hi ${selectedLead.business_name} Team, Sarfaraz here from Vexo TeamX. ` +
+        `We build high-converting websites and systems for ${selectedLead.category} businesses. ` +
+        `Would you be open to seeing a free custom website mockup we made for your business?`
+      );
+      setNewInstagramMessage(
+        `Hey ${selectedLead.business_name} Team! Love your content. ` +
+        `We made a quick custom redesign mockup for your website to help scale bookings/sales. ` +
+        `Can we send it over here?`
+      );
     }
   }, [selectedLead?.id]);
 
@@ -372,6 +382,9 @@ export default function App() {
   const [newEmailSubject, setNewEmailSubject] = useState('Outreach - Vexo TeamX');
   const [newEmailBody, setNewEmailBody] = useState('');
   const [newEmailTo, setNewEmailTo] = useState('');
+  const [newWhatsAppMessage, setNewWhatsAppMessage] = useState('');
+  const [newInstagramMessage, setNewInstagramMessage] = useState('');
+  const [activeMsgPlatform, setActiveMsgPlatform] = useState('whatsapp');
   
   const isGmailAuthorized = gmailToken && gmailTokenExpiry > Date.now();
 
@@ -1399,9 +1412,117 @@ export default function App() {
     
     // Step 5 integration hooks
     else if (type === 'SEND_WHATSAPP') {
-      showToast(`💬 AI action: Send WhatsApp to ${params.phone}`);
-      if (window.handleSendWhatsAppAction) {
-        window.handleSendWhatsAppAction(params);
+      const { phone, message, leadId, platform } = params;
+      
+      if (platform === 'instagram' || type === 'SEND_INSTAGRAM') {
+        executeAssistantAction({ type: 'SEND_INSTAGRAM', params });
+        return;
+      }
+      
+      let targetPhone = phone;
+      let targetLeadId = leadId;
+      
+      if (!targetLeadId && targetPhone) {
+        const found = leads.find(l => l.phone === targetPhone);
+        if (found) targetLeadId = found.id;
+      }
+      
+      if (targetLeadId && !targetPhone) {
+        const found = leads.find(l => l.id === targetLeadId);
+        if (found) targetPhone = found.phone;
+      }
+      
+      if (!targetPhone && (leadId || phone)) {
+        const searchName = leadId || phone;
+        const found = leads.find(l => l.business_name.toLowerCase().includes(searchName.toLowerCase()));
+        if (found) {
+          targetLeadId = found.id;
+          targetPhone = found.phone;
+        }
+      }
+      
+      if (targetPhone) {
+        const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+        const targetMsg = message || `Hi, we noticed your business and would love to connect.`;
+        
+        const today = new Date().toISOString().split('T')[0];
+        const logEntry = {
+          id: 'wa_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          timestamp: new Date().toISOString(),
+          sender: 'you',
+          text: `💬 WhatsApp Outreach Sent\nMessage: ${targetMsg}`
+        };
+        
+        const targetLead = leads.find(l => l.id === targetLeadId);
+        if (targetLead) {
+          const updatedLead = {
+            ...targetLead,
+            logs: [...(targetLead.logs || []), logEntry],
+            last_contacted: today
+          };
+          handleUpdateLeadDetail(updatedLead, '💬 WhatsApp outreach sent & logged!');
+        } else {
+          showToast('💬 WhatsApp outreach sent!');
+        }
+        
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(targetMsg)}`, '_blank');
+      } else {
+        showToast("❌ AI: Could not find client phone number!");
+      }
+    }
+    
+    else if (type === 'SEND_INSTAGRAM') {
+      const { handle, message, leadId } = params;
+      let targetHandle = handle;
+      let targetLeadId = leadId;
+      
+      if (!targetLeadId && targetHandle) {
+        const found = leads.find(l => l.instagram_handle === targetHandle);
+        if (found) targetLeadId = found.id;
+      }
+      
+      if (targetLeadId && !targetHandle) {
+        const found = leads.find(l => l.id === targetLeadId);
+        if (found) targetHandle = found.instagram_handle;
+      }
+      
+      if (!targetHandle && (leadId || handle)) {
+        const searchName = leadId || handle;
+        const found = leads.find(l => l.business_name.toLowerCase().includes(searchName.toLowerCase()));
+        if (found) {
+          targetLeadId = found.id;
+          targetHandle = found.instagram_handle;
+        }
+      }
+      
+      if (targetHandle) {
+        const targetMsg = message || `Hi, we noticed your Instagram page and would love to connect.`;
+        
+        navigator.clipboard.writeText(targetMsg);
+        
+        const today = new Date().toISOString().split('T')[0];
+        const logEntry = {
+          id: 'ig_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          timestamp: new Date().toISOString(),
+          sender: 'you',
+          text: `📸 Instagram Outreach Sent\nMessage: ${targetMsg}`
+        };
+        
+        const targetLead = leads.find(l => l.id === targetLeadId);
+        if (targetLead) {
+          const updatedLead = {
+            ...targetLead,
+            logs: [...(targetLead.logs || []), logEntry],
+            last_contacted: today
+          };
+          handleUpdateLeadDetail(updatedLead, '📸 Instagram message copied & profile opened!');
+        } else {
+          showToast('📸 Instagram message copied!');
+        }
+        
+        window.open(`https://instagram.com/${targetHandle.replace('@', '')}/`, '_blank');
+      } else {
+        showToast("❌ AI: Could not find Instagram handle!");
       }
     }
     
@@ -3581,6 +3702,151 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                           </button>
                         )}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp & Instagram Integration Section */}
+                  <div className="border-t border-slate-200 dark:border-white/5 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        💬 Messaging Outreach
+                      </h3>
+                      <div className="flex bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg border border-slate-200 dark:border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setActiveMsgPlatform('whatsapp')}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${activeMsgPlatform === 'whatsapp' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-200'}`}
+                        >
+                          WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveMsgPlatform('instagram')}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${activeMsgPlatform === 'instagram' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-200'}`}
+                        >
+                          Instagram
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 space-y-3">
+                      {activeMsgPlatform === 'whatsapp' ? (
+                        <>
+                          {/* WhatsApp Phone */}
+                          <div>
+                            <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">WhatsApp Phone Number</label>
+                            <input
+                              type="text"
+                              placeholder="+1234567890"
+                              value={selectedLead.phone || ''}
+                              onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, phone: e.target.value }, null)}
+                              className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50 font-mono"
+                            />
+                          </div>
+
+                          {/* WhatsApp Message */}
+                          <div>
+                            <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">WhatsApp Outreach Draft</label>
+                            <textarea
+                              rows="3"
+                              placeholder="Write WhatsApp message..."
+                              value={newWhatsAppMessage}
+                              onChange={(e) => setNewWhatsAppMessage(e.target.value)}
+                              className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                            />
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cleanPhone = (selectedLead.phone || '').replace(/[^0-9]/g, '');
+                                if (!cleanPhone) {
+                                  showToast('⚠️ Please enter a phone number first!');
+                                  return;
+                                }
+                                const today = new Date().toISOString().split('T')[0];
+                                const logEntry = {
+                                  id: 'wa_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                  timestamp: new Date().toISOString(),
+                                  sender: 'you',
+                                  text: `💬 WhatsApp Outreach Sent\nMessage: ${newWhatsAppMessage}`
+                                };
+                                handleUpdateLeadDetail({
+                                  ...selectedLead,
+                                  logs: [...(selectedLead.logs || []), logEntry],
+                                  last_contacted: today
+                                }, '💬 WhatsApp outreach sent & logged!');
+                                
+                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(newWhatsAppMessage)}`, '_blank');
+                              }}
+                              disabled={!(selectedLead.phone || '').trim() || !newWhatsAppMessage.trim()}
+                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-[11px] font-semibold rounded-lg shadow-md transition cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>Send via WhatsApp</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Instagram Handle */}
+                          <div>
+                            <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">Instagram Handle</label>
+                            <input
+                              type="text"
+                              placeholder="@username"
+                              value={selectedLead.instagram_handle || ''}
+                              onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, instagram_handle: e.target.value }, null)}
+                              className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50 font-mono"
+                            />
+                          </div>
+
+                          {/* Instagram Message */}
+                          <div>
+                            <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">Instagram Outreach Draft</label>
+                            <textarea
+                              rows="3"
+                              placeholder="Write Instagram message..."
+                              value={newInstagramMessage}
+                              onChange={(e) => setNewInstagramMessage(e.target.value)}
+                              className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50"
+                            />
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cleanHandle = (selectedLead.instagram_handle || '').replace('@', '').trim();
+                                if (!cleanHandle) {
+                                  showToast('⚠️ Please enter an Instagram handle first!');
+                                  return;
+                                }
+                                navigator.clipboard.writeText(newInstagramMessage);
+                                
+                                const today = new Date().toISOString().split('T')[0];
+                                const logEntry = {
+                                  id: 'ig_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                  timestamp: new Date().toISOString(),
+                                  sender: 'you',
+                                  text: `📸 Instagram Outreach Sent\nMessage: ${newInstagramMessage}`
+                                };
+                                handleUpdateLeadDetail({
+                                  ...selectedLead,
+                                  logs: [...(selectedLead.logs || []), logEntry],
+                                  last_contacted: today
+                                }, '📸 Instagram message copied & profile opened!');
+                                
+                                window.open(`https://instagram.com/${cleanHandle}/`, '_blank');
+                              }}
+                              disabled={!(selectedLead.instagram_handle || '').trim() || !newInstagramMessage.trim()}
+                              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:hover:bg-purple-600 text-white text-[11px] font-semibold rounded-lg shadow-md transition cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>Open Instagram & Copy Message</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
