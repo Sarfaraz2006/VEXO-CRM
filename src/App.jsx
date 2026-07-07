@@ -323,6 +323,20 @@ export default function App() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Step 1: Fast lead editing states
+  const [localNotes, setLocalNotes] = useState('');
+  const [newLogSent, setNewLogSent] = useState('');
+  const [newLogReply, setNewLogReply] = useState('');
+
+  // Sync drawer local states when selected lead changes
+  useEffect(() => {
+    if (selectedLead) {
+      setLocalNotes(selectedLead.notes || '');
+      setNewLogSent('');
+      setNewLogReply('');
+    }
+  }, [selectedLead?.id]);
+
   const [selectedProject, setSelectedProject] = useState(null);
 
   const [projects, setProjects] = useState(() => {
@@ -938,7 +952,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateLeadDetail = (updatedLead) => {
+  const handleUpdateLeadDetail = (updatedLead, customToast = '💾 Lead details updated!') => {
     const triggerConfetti = 
       updatedLead.outreach_status === 'Closed Won' && 
       leads.find(l => l.id === updatedLead.id)?.outreach_status !== 'Closed Won';
@@ -946,7 +960,9 @@ export default function App() {
     const updatedLeads = leads.map(l => l.id === updatedLead.id ? updatedLead : l);
     setLeads(updatedLeads);
     setSelectedLead(updatedLead);
-    showToast('💾 Lead details updated!');
+    if (customToast) {
+      showToast(customToast);
+    }
 
     if (triggerConfetti) {
       confetti({
@@ -960,6 +976,109 @@ export default function App() {
       syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updatedLeads)
         .catch(err => setSyncError(err.message));
     }
+  };
+
+  const handleCloseLeadDrawer = () => {
+    if (selectedLead && localNotes !== selectedLead.notes) {
+      handleUpdateLeadDetail({ ...selectedLead, notes: localNotes });
+    }
+    setSelectedLead(null);
+  };
+
+  const handleQuickStatusUpdate = (leadId, newStatus) => {
+    const today = new Date().toISOString().split('T')[0];
+    const triggerConfetti = newStatus === 'Closed Won';
+
+    const updatedLeads = leads.map(l => {
+      if (l.id === leadId) {
+        const prevStatus = l.outreach_status;
+        const systemLog = {
+          id: 'sys_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          timestamp: new Date().toISOString(),
+          sender: 'system',
+          text: `Status changed from "${prevStatus}" to "${newStatus}"`
+        };
+        const existingLogs = l.logs || [];
+        return {
+          ...l,
+          outreach_status: newStatus,
+          last_contacted: today,
+          logs: [...existingLogs, systemLog]
+        };
+      }
+      return l;
+    });
+
+    setLeads(updatedLeads);
+    showToast(`⚡ Status updated to ${newStatus}!`);
+
+    if (triggerConfetti) {
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    }
+
+    // Also update selectedLead if it is active
+    if (selectedLead && selectedLead.id === leadId) {
+      const prevStatus = selectedLead.outreach_status;
+      const systemLog = {
+        id: 'sys_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp: new Date().toISOString(),
+        sender: 'system',
+        text: `Status changed from "${prevStatus}" to "${newStatus}"`
+      };
+      const existingLogs = selectedLead.logs || [];
+      setSelectedLead({
+        ...selectedLead,
+        outreach_status: newStatus,
+        last_contacted: today,
+        logs: [...existingLogs, systemLog]
+      });
+    }
+
+    if (syncConfig.mode === 'sheets') {
+      syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updatedLeads)
+        .catch(err => setSyncError(err.message));
+    }
+  };
+
+  const handleAddLog = () => {
+    if (!newLogSent.trim() && !newLogReply.trim()) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const newLogs = [];
+    const timestamp = new Date().toISOString();
+
+    if (newLogSent.trim()) {
+      newLogs.push({
+        id: 'log_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp,
+        sender: 'you',
+        text: newLogSent.trim()
+      });
+    }
+
+    if (newLogReply.trim()) {
+      newLogs.push({
+        id: 'log_reply_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp,
+        sender: 'client',
+        text: newLogReply.trim()
+      });
+    }
+
+    const existingLogs = selectedLead.logs || [];
+    const updatedLead = {
+      ...selectedLead,
+      logs: [...existingLogs, ...newLogs],
+      last_contacted: today
+    };
+
+    handleUpdateLeadDetail(updatedLead, '💬 Message logged successfully!');
+    setNewLogSent('');
+    setNewLogReply('');
   };
 
   const handleDeleteLead = (id) => {
@@ -1567,12 +1686,43 @@ export default function App() {
                         {lead.last_contacted || '—'}
                       </td>
                       <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          onClick={() => setSelectedLead(lead)}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold py-1 px-3.5 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/10 transition"
-                        >
-                          View
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center gap-1">
+                            {lead.outreach_status === 'Not Contacted' && (
+                              <button
+                                onClick={() => handleQuickStatusUpdate(lead.id, 'Messaged')}
+                                className="text-[10px] font-bold bg-blue-500/10 hover:bg-blue-500/25 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                                title="Mark as Messaged"
+                              >
+                                💬 Messaged
+                              </button>
+                            )}
+                            {lead.outreach_status === 'Messaged' && (
+                              <button
+                                onClick={() => handleQuickStatusUpdate(lead.id, 'Replied')}
+                                className="text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                                title="Mark as Replied"
+                              >
+                                📩 Replied
+                              </button>
+                            )}
+                            {lead.outreach_status === 'Replied' && (
+                              <button
+                                onClick={() => handleQuickStatusUpdate(lead.id, 'Interested')}
+                                className="text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                                title="Mark as Interested"
+                              >
+                                ⭐ Interested
+                              </button>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => setSelectedLead(lead)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold py-1 px-3.5 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/10 transition cursor-pointer"
+                          >
+                            View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1611,6 +1761,34 @@ export default function App() {
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-medium">
                       Last Contact: {lead.last_contacted || '—'}
                     </span>
+                  </div>
+
+                  {/* Quick Action Button for Mobile */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/5 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                    {lead.outreach_status === 'Not Contacted' && (
+                      <button
+                        onClick={() => handleQuickStatusUpdate(lead.id, 'Messaged')}
+                        className="flex-1 py-1.5 text-center text-[10px] font-semibold bg-blue-500/10 active:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg transition cursor-pointer"
+                      >
+                        💬 Mark Messaged
+                      </button>
+                    )}
+                    {lead.outreach_status === 'Messaged' && (
+                      <button
+                        onClick={() => handleQuickStatusUpdate(lead.id, 'Replied')}
+                        className="flex-1 py-1.5 text-center text-[10px] font-semibold bg-indigo-500/10 active:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg transition cursor-pointer"
+                      >
+                        📩 Mark Replied
+                      </button>
+                    )}
+                    {lead.outreach_status === 'Replied' && (
+                      <button
+                        onClick={() => handleQuickStatusUpdate(lead.id, 'Interested')}
+                        className="flex-1 py-1.5 text-center text-[10px] font-semibold bg-emerald-500/10 active:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg transition cursor-pointer"
+                      >
+                        ⭐ Mark Interested
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -2612,7 +2790,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedLead(null)}
+              onClick={handleCloseLeadDrawer}
               className="fixed inset-0 bg-black z-50 cursor-pointer"
             />
             {/* Drawer */}
@@ -2639,7 +2817,7 @@ export default function App() {
                       <Trash2 className="w-4.5 h-4.5" />
                     </button>
                     <button 
-                      onClick={() => setSelectedLead(null)}
+                      onClick={handleCloseLeadDrawer}
                       className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition duration-150"
                     >
                       <X className="w-5 h-5" />
@@ -2763,12 +2941,97 @@ export default function App() {
                   <div>
                     <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Outreach Conversation Notes</label>
                     <textarea 
-                      rows="6"
-                      value={selectedLead.notes || ''}
-                      onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, notes: e.target.value })}
+                      rows="4"
+                      value={localNotes}
+                      onChange={(e) => setLocalNotes(e.target.value)}
+                      onBlur={() => {
+                        if (localNotes !== selectedLead.notes) {
+                          handleUpdateLeadDetail({ ...selectedLead, notes: localNotes });
+                        }
+                      }}
                       placeholder="Add meeting notes, call recap, design requests or project budget estimate..."
-                      className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                      className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
                     />
+                  </div>
+
+                  {/* Log Conversation / Chat History Section */}
+                  <div className="border-t border-slate-200 dark:border-white/5 pt-4 mt-4">
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">
+                      💬 Conversation History
+                    </h3>
+                    
+                    {/* Quick Entry Box */}
+                    <div className="bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 space-y-3 mb-4">
+                      <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase flex justify-between items-center">
+                        <span>Log New Message</span>
+                        <span className="text-[9px] text-indigo-400 font-normal normal-case">Adds to history</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <div>
+                          <textarea
+                            rows="2"
+                            placeholder="What you sent (optional)..."
+                            value={newLogSent}
+                            onChange={(e) => setNewLogSent(e.target.value)}
+                            className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                          />
+                        </div>
+                        <div>
+                          <textarea
+                            rows="2"
+                            placeholder="What they replied (optional)..."
+                            value={newLogReply}
+                            onChange={(e) => setNewLogReply(e.target.value)}
+                            className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleAddLog}
+                          disabled={!newLogSent.trim() && !newLogReply.trim()}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white text-[11.5px] font-semibold rounded-lg shadow-md transition cursor-pointer"
+                        >
+                          Log Message
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* History List */}
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                      {(!selectedLead.logs || selectedLead.logs.length === 0) ? (
+                        <div className="text-center py-6 text-xs text-slate-500 italic">
+                          No messages logged yet. Use the fields above to add one.
+                        </div>
+                      ) : (
+                        [...selectedLead.logs].reverse().map((log) => {
+                          const isSystem = log.sender === 'system';
+                          const isClient = log.sender === 'client';
+                          
+                          return (
+                            <div 
+                              key={log.id} 
+                              className={`p-2.5 rounded-xl border text-xs ${
+                                isSystem 
+                                  ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-200/50 dark:border-white/5 text-slate-500' 
+                                  : isClient
+                                    ? 'bg-purple-500/5 border-purple-500/10 text-slate-800 dark:text-purple-200'
+                                    : 'bg-indigo-500/5 border-indigo-500/10 text-slate-800 dark:text-indigo-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1 text-[10px] text-slate-500 font-mono">
+                                <span className="font-semibold capitalize">
+                                  {isSystem ? '⚙️ System' : isClient ? '📩 Client' : '💬 You'}
+                                </span>
+                                <span>{new Date(log.timestamp).toLocaleString()}</span>
+                              </div>
+                              <p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{log.text}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2776,7 +3039,7 @@ export default function App() {
               {/* Action Save Button */}
               <div className="pt-4 border-t border-white/5 flex gap-2">
                 <button 
-                  onClick={() => setSelectedLead(null)}
+                  onClick={handleCloseLeadDrawer}
                   className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 py-2.5 rounded-xl text-xs font-semibold"
                 >
                   Close Profile
