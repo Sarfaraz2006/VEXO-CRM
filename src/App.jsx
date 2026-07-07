@@ -1780,12 +1780,23 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
         generationConfig: { responseMimeType: "application/json" }
       };
       
+      console.log(`[UniversalAI] Calling Gemini: v1beta/models/${model}:generateContent`);
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`Gemini API Error: HTTP ${response.status}`);
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          const errJSON = await response.json();
+          errorDetails = JSON.stringify(errJSON);
+        } catch (e) {
+          errorDetails = await response.text();
+        }
+        console.error("Gemini API error details:", errorDetails);
+        throw new Error(`Gemini API Error: HTTP ${response.status} - ${errorDetails}`);
+      }
       const result = await response.json();
       return result.candidates?.[0]?.content?.parts?.[0]?.text;
     } 
@@ -1814,12 +1825,23 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
         response_format: { type: "json_object" }
       };
       
+      console.log(`[UniversalAI] Calling OpenAI-compatible endpoint: ${url}`);
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`${provider} API Error: HTTP ${response.status}`);
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          const errJSON = await response.json();
+          errorDetails = JSON.stringify(errJSON);
+        } catch (e) {
+          errorDetails = await response.text();
+        }
+        console.error(`${provider} API error details:`, errorDetails);
+        throw new Error(`${provider} API Error: HTTP ${response.status} - ${errorDetails}`);
+      }
       const result = await response.json();
       return result.choices?.[0]?.message?.content;
     }
@@ -1842,12 +1864,23 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
         ]
       };
       
+      console.log(`[UniversalAI] Calling Claude: ${url}`);
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`Claude API Error: HTTP ${response.status}`);
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          const errJSON = await response.json();
+          errorDetails = JSON.stringify(errJSON);
+        } catch (e) {
+          errorDetails = await response.text();
+        }
+        console.error("Claude API error details:", errorDetails);
+        throw new Error(`Claude API Error: HTTP ${response.status} - ${errorDetails}`);
+      }
       const result = await response.json();
       return result.content?.[0]?.text;
     }
@@ -2330,7 +2363,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                             <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[170px]">
                               {lead.business_name}
                             </h4>
-                            <p className="text-[10px] text-slate-550 capitalize">{lead.category}</p>
+                            <p className="text-[10px] text-slate-500 capitalize">{lead.category}</p>
                           </div>
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                             isOverdueFollowUp 
@@ -3428,7 +3461,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
               
               {/* Funnel Breakdown (Recharts Horizontal Bar Chart) */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200">
-                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
                   <Users className="w-4.5 h-4.5 text-indigo-400" />
                   Client Funnel Status Breakdown
                 </h3>
@@ -3482,7 +3515,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
 
               {/* Lead Source Distribution (Recharts Donut Chart) */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200">
-                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
                   <Globe className="w-4.5 h-4.5 text-purple-400" />
                   Lead Source Distribution
                 </h3>
@@ -3541,7 +3574,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
 
               {/* Monthly Revenue Trend (Recharts Area/Line Chart) */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200 lg:col-span-2">
-                <h3 className="text-sm font-bold text-slate-200 mb-6 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
                   <TrendingUp className="w-4.5 h-4.5 text-emerald-400" />
                   Monthly Closed Won Revenue Trend
                 </h3>
@@ -3582,7 +3615,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
 
               {/* Pending Follow-ups */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200 lg:col-span-2">
-                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Calendar className="w-4.5 h-4.5 text-rose-400" />
                     Overdue & Today's Follow-ups
@@ -3603,7 +3636,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                       <div key={lead.id} className="py-3 flex items-center justify-between gap-4 group">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-bold text-slate-200 truncate">{lead.business_name}</h4>
+                            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{lead.business_name}</h4>
                             <span className="text-[9px] bg-slate-900 border border-white/5 px-2 py-0.5 rounded text-slate-400 font-medium capitalize flex-shrink-0">
                               {lead.category}
                             </span>
@@ -3633,7 +3666,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
               {/* Lead Source Conversion & ROI Analysis */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200 lg:col-span-2">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                     <TrendingUp className="w-4.5 h-4.5 text-emerald-400" />
                     Lead Source Conversion & ROI Analysis
                   </h3>
@@ -3657,7 +3690,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         return (
                           <tr key={src.name} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.01]">
                             <td className="py-3 font-semibold text-slate-700 dark:text-slate-200 capitalize">{src.name}</td>
-                            <td className="py-3 text-center font-mono text-slate-650 dark:text-slate-400">{src.totalLeads}</td>
+                            <td className="py-3 text-center font-mono text-slate-600 dark:text-slate-400">{src.totalLeads}</td>
                             <td className="py-3 text-center font-mono font-bold text-emerald-450">{src.wonLeads}</td>
                             <td className="py-3 text-center">
                               <div className="flex items-center justify-center gap-2">
@@ -3684,7 +3717,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
               {/* Outreach Performance & Response Stats */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                     <Users className="w-4.5 h-4.5 text-indigo-400" />
                     Response Rates by Outreach Channel
                   </h3>
@@ -3705,8 +3738,8 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                       {outreachInsights.channels.map(ch => (
                         <tr key={ch.name} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.01]">
                           <td className="py-3 font-semibold text-slate-700 dark:text-slate-200">{ch.name}</td>
-                          <td className="py-3 text-center font-mono text-slate-650 dark:text-slate-400">{ch.contacted}</td>
-                          <td className="py-3 text-center font-mono text-slate-650 dark:text-slate-400">{ch.replies}</td>
+                          <td className="py-3 text-center font-mono text-slate-600 dark:text-slate-400">{ch.contacted}</td>
+                          <td className="py-3 text-center font-mono text-slate-600 dark:text-slate-400">{ch.replies}</td>
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <span className="font-mono font-bold text-indigo-400">{ch.rate}%</span>
@@ -3728,7 +3761,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
               {/* Timeline Metrics card */}
               <div className="bg-white dark:bg-[#101217] border border-slate-200 dark:border-white/5 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none transition-colors duration-200 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
                     <TrendingUp className="w-4.5 h-4.5 text-purple-400" />
                     Lifecycle & Speed Metrics
                   </h3>
@@ -3873,7 +3906,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
 
                   <div className="col-span-2 p-3 bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl">
                     <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Business Address</div>
-                    <div className="text-xs text-slate-300 mt-1 flex items-start gap-1">
+                    <div className="text-xs text-slate-700 dark:text-slate-300 mt-1 flex items-start gap-1">
                       <MapPin className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
                       <span>{selectedLead.address || '—'}</span>
                     </div>
@@ -3934,7 +3967,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           type="date"
                           value={selectedLead.follow_up_date || ''}
                           onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, follow_up_date: e.target.value })}
-                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                         />
                       </div>
                     </div>
@@ -4350,7 +4383,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={newLeadForm.business_name}
                         onChange={(e) => setNewLeadForm({ ...newLeadForm, business_name: e.target.value })}
                         placeholder="e.g. Studio Hair & Styling"
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                       />
                     </div>
 
@@ -4363,7 +4396,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           value={newLeadForm.category}
                           onChange={(e) => setNewLeadForm({ ...newLeadForm, category: e.target.value })}
                           placeholder="e.g. hair salon, dentist"
-                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                         />
                       </div>
 
@@ -4374,7 +4407,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           value={newLeadForm.phone}
                           onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
                           placeholder="e.g. +44 20 8304 4456"
-                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                         />
                       </div>
                     </div>
@@ -4387,7 +4420,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={newLeadForm.address}
                         onChange={(e) => setNewLeadForm({ ...newLeadForm, address: e.target.value })}
                         placeholder="Full physical address or city info"
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                       />
                     </div>
 
@@ -4400,7 +4433,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           value={newLeadForm.instagram_handle}
                           onChange={(e) => setNewLeadForm({ ...newLeadForm, instagram_handle: e.target.value })}
                           placeholder="e.g. studio_hair_design"
-                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50"
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                         />
                       </div>
 
@@ -4465,7 +4498,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={newLeadForm.notes}
                         onChange={(e) => setNewLeadForm({ ...newLeadForm, notes: e.target.value })}
                         placeholder="Add background info, design ideas, or specific outreach hooks..."
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
                       />
                     </div>
                   </div>
@@ -4552,7 +4585,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                             type="text"
                             value={selectedProject.project_name}
                             onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { project_name: e.target.value })}
-                            className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
+                            className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
                           />
                         </div>
 
@@ -4563,7 +4596,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                               <select
                                 value={selectedProject.status}
                                 onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { status: e.target.value })}
-                                className="w-full appearance-none bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 pr-8 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
+                                className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 pr-8 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
                               >
                                 <option value="Not Started">Not Started</option>
                                 <option value="In Progress">In Progress</option>
@@ -4580,7 +4613,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                               type="date"
                               value={selectedProject.deadline}
                               onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { deadline: e.target.value })}
-                              className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono"
+                              className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono"
                             />
                           </div>
                         </div>
@@ -4593,7 +4626,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                               value={selectedProject.drive_link}
                               onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { drive_link: e.target.value })}
                               placeholder="https://drive.google.com/..."
-                              className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono text-[11px]"
+                              className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono text-[11px]"
                             />
                           </div>
                           <div>
@@ -4603,7 +4636,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                               value={selectedProject.demo_link}
                               onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { demo_link: e.target.value })}
                               placeholder="https://preview.com"
-                              className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono text-[11px]"
+                              className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 font-mono text-[11px]"
                             />
                           </div>
                         </div>
@@ -4614,7 +4647,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                             value={selectedProject.notes}
                             onChange={(e) => handleUpdateProjectDetails(selectedProject.id, { notes: e.target.value })}
                             rows={3}
-                            className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
+                            className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
                           />
                         </div>
                       </div>
@@ -4858,7 +4891,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                             required
                             value={newProjectForm.client_name}
                             onChange={(e) => setNewProjectForm({ ...newProjectForm, client_name: e.target.value })}
-                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-650 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                           >
                             <option value="" disabled>Select a Client...</option>
                             {leads.map(lead => (
@@ -4892,7 +4925,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         <select
                           value={newProjectForm.status}
                           onChange={(e) => setNewProjectForm({ ...newProjectForm, status: e.target.value })}
-                          className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-650 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                          className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                         >
                           <option value="Not Started">Not Started</option>
                           <option value="In Progress">In Progress</option>
@@ -4934,7 +4967,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         onChange={(e) => setNewProjectForm({ ...newProjectForm, notes: e.target.value })}
                         placeholder="Detail scope, technologies, or notes..."
                         rows={4}
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
                       />
                     </div>
 
@@ -5094,7 +5127,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           value={newInvoiceForm.amount}
                           onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, amount: e.target.value })}
                           placeholder="e.g. 1500.00"
-                          className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                          className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                         />
                       </div>
                       <div>
@@ -5103,7 +5136,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                           <select
                             value={newInvoiceForm.currency}
                             onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, currency: e.target.value })}
-                            className="w-full appearance-none bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                            className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                           >
                             <option value="USD">USD ($)</option>
                             <option value="INR">INR (₹)</option>
@@ -5120,7 +5153,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         <select
                           value={newInvoiceForm.status}
                           onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, status: e.target.value })}
-                          className="w-full appearance-none bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                          className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50"
                         >
                           <option value="Draft">Draft</option>
                           <option value="Sent">Sent</option>
@@ -5138,7 +5171,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         type="date"
                         value={newInvoiceForm.due_date}
                         onChange={(e) => setNewInvoiceForm({ ...newInvoiceForm, due_date: e.target.value })}
-                        className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                       />
                     </div>
                   </div>
@@ -5251,7 +5284,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={tempSheetId}
                         onChange={(e) => setTempSheetId(e.target.value)}
                         placeholder="e.g. 1a2b3c4d5e6f7g8h9i0j..."
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                       />
                     </div>
 
@@ -5262,7 +5295,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={tempApiKey}
                         onChange={(e) => setTempApiKey(e.target.value)}
                         placeholder="AIzaSy..."
-                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                       />
                     </div>
                     
@@ -5354,7 +5387,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                         value={tempAiApiKey}
                         onChange={(e) => setTempAiApiKey(e.target.value)}
                         placeholder="Enter API Key..."
-                        className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                       />
                     </div>
                   )}
@@ -5573,19 +5606,19 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                 <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-none mb-1">
                   <button
                     onClick={() => setChatInput("Show me Croydon leads not contacted")}
-                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
                   >
                     🔍 Croydon leads not contacted
                   </button>
                   <button
                     onClick={() => setChatInput("Nail salons closed this week")}
-                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
                   >
                     💅 Nail salons closed
                   </button>
                   <button
                     onClick={() => setChatInput("Which category has best response rate?")}
-                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
                   >
                     📈 Best category response
                   </button>
@@ -6258,7 +6291,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="p-1 rounded bg-slate-100 shrink-0"><Phone className="w-3.5 h-3.5 text-slate-500" /></div>
-                                <span className="font-mono text-slate-550 truncate">{lead?.phone || '+1 (212) 555-3421'}</span>
+                                <span className="font-mono text-slate-500 truncate">{lead?.phone || '+1 (212) 555-3421'}</span>
                               </div>
                             </div>
                           </div>
@@ -6323,7 +6356,7 @@ You must return ONLY the raw JSON block. No markdown backticks, no markdown form
                                   <th className="py-3 px-4 text-right w-28">Amount</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-150 text-[11px] text-slate-650 bg-white">
+                              <tbody className="divide-y divide-slate-200 text-[11px] text-slate-600 bg-white">
                                 {invoiceItems.map((item, idx) => {
                                   let IconComponent = Code;
                                   if (item.icon === 'code') IconComponent = Code;
