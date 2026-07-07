@@ -289,8 +289,11 @@ export default function App() {
           mode: 'local',
           sheetId: '',
           apiKey: '',
-          geminiApiKey: '',
           googleClientId: '',
+          aiProvider: 'gemini',
+          aiModel: 'gemini-2.0-flash',
+          aiApiKey: parsed.aiApiKey || parsed.geminiApiKey || '',
+          aiBaseUrl: '',
           ...parsed
         };
       } catch (e) {
@@ -301,8 +304,11 @@ export default function App() {
       mode: 'local', // 'local' or 'sheets'
       sheetId: '',
       apiKey: '',
-      geminiApiKey: '',
       googleClientId: '',
+      aiProvider: 'gemini',
+      aiModel: 'gemini-2.0-flash',
+      aiApiKey: '',
+      aiBaseUrl: '',
     };
   });
 
@@ -615,8 +621,11 @@ export default function App() {
   const [tempSheetId, setTempSheetId] = useState(syncConfig.sheetId);
   const [tempApiKey, setTempApiKey] = useState(syncConfig.apiKey);
   const [tempMode, setTempMode] = useState(syncConfig.mode);
-  const [tempGeminiApiKey, setTempGeminiApiKey] = useState(syncConfig.geminiApiKey || '');
   const [tempGoogleClientId, setTempGoogleClientId] = useState(syncConfig.googleClientId || '');
+  const [tempAiProvider, setTempAiProvider] = useState(syncConfig.aiProvider || 'gemini');
+  const [tempAiModel, setTempAiModel] = useState(syncConfig.aiModel || 'gemini-2.0-flash');
+  const [tempAiApiKey, setTempAiApiKey] = useState(syncConfig.aiApiKey || '');
+  const [tempAiBaseUrl, setTempAiBaseUrl] = useState(syncConfig.aiBaseUrl || '');
 
   // New Lead Form State
   const [newLeadForm, setNewLeadForm] = useState({
@@ -1424,6 +1433,85 @@ export default function App() {
     }
   };
 
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length <= 1) {
+        alert("CSV file khali lag rahi hai.");
+        return;
+      }
+      
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
+      const parsedLeads = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        // Correctly parse CSV row, respecting quoted fields containing commas
+        const matches = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+        if (matches.length === 0) continue;
+        
+        const row = matches.map(val => val.trim().replace(/^["']|["']$/g, ''));
+        const lead = {};
+        
+        headers.forEach((header, index) => {
+          const value = row[index] || '';
+          if (header.includes('business') || header.includes('name') || header.includes('client')) {
+            lead.business_name = value;
+          } else if (header.includes('phone') || header.includes('mobile')) {
+            lead.phone = value;
+          } else if (header.includes('email') || header.includes('mail')) {
+            lead.email = value;
+          } else if (header.includes('address') || header.includes('location')) {
+            lead.address = value;
+          } else if (header.includes('category') || header.includes('type')) {
+            lead.category = value;
+          } else if (header.includes('website')) {
+            lead.website_status = value || 'Needs Redesign';
+          } else if (header.includes('instagram') || header.includes('handle') || header.includes('ig')) {
+            lead.instagram_handle = value;
+          } else if (header.includes('priority')) {
+            lead.priority = value.toUpperCase() === 'HIGH' || value.toUpperCase() === 'LOW' || value.toUpperCase() === 'MED' ? value.toUpperCase() : 'MED';
+          } else if (header.includes('status') || header.includes('outreach')) {
+            lead.outreach_status = value || 'Not Contacted';
+          } else if (header.includes('note') || header.includes('desc')) {
+            lead.notes = value;
+          } else if (header.includes('follow') || header.includes('date')) {
+            lead.follow_up_date = value;
+          }
+        });
+        
+        if (!lead.business_name) continue;
+        lead.id = `lead_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+        if (!lead.category) lead.category = 'Other';
+        if (!lead.website_status) lead.website_status = 'Needs Redesign';
+        if (!lead.priority) lead.priority = 'MED';
+        if (!lead.outreach_status) lead.outreach_status = 'Not Contacted';
+        if (!lead.logs) lead.logs = [];
+        
+        parsedLeads.push(lead);
+      }
+      
+      if (parsedLeads.length > 0) {
+        const updatedLeads = [...parsedLeads, ...leads];
+        setLeads(updatedLeads);
+        showToast(`📤 CSV file imported! Added ${parsedLeads.length} leads.`);
+        
+        if (syncConfig.mode === 'sheets') {
+          syncAllLeadsToSheets(syncConfig.sheetId, syncConfig.apiKey, updatedLeads)
+            .catch(err => setSyncError(err.message));
+        }
+      } else {
+        alert("Valid leads found nahi ho sakin. Verify CSV column headers.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const executeAssistantAction = (action) => {
     const { type, params } = action;
     if (!type || type === 'NONE') return;
@@ -1634,35 +1722,19 @@ export default function App() {
     }
   };
 
-  const handleSendChatMessage = async (e) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
+  const callUniversalAI = async (userMessage) => {
+    const provider = syncConfig.aiProvider || 'gemini';
+    const model = syncConfig.aiModel || 'gemini-2.0-flash';
+    const apiKey = syncConfig.aiApiKey || '';
+    const baseUrl = syncConfig.aiBaseUrl || '';
     
-    const userMsgText = chatInput.trim();
-    const newUserMsg = { id: 'msg_' + Date.now(), sender: 'user', text: userMsgText };
-    
-    setChatMessages(prev => [...prev, newUserMsg]);
-    setChatInput('');
-    setIsChatLoading(true);
-    
-    if (!syncConfig.geminiApiKey) {
-      setChatMessages(prev => [...prev, {
-        id: 'msg_' + Date.now(),
-        sender: 'assistant',
-        text: '❌ Please set your Gemini API Key in the Settings Modal first to activate the AI Assistant.'
-      }]);
-      setIsChatLoading(false);
-      return;
-    }
-    
-    try {
-      const systemPrompt = `You are Vexo AI, the intelligent virtual assistant inside the Vexo TeamX CRM.
+    const systemPrompt = `You are Vexo AI, the intelligent virtual assistant inside the Vexo TeamX CRM.
 Your job is to assist the user (Sarfaraz) in query analysis, filtering the CRM dashboard, updating lead records, and preparing outbound actions.
 
 CURRENT DATE/TIME: ${new Date().toISOString()} (Use this to interpret relative dates like "today", "yesterday", "this week", "3 days ago").
 
 CURRENT CRM DATASETS:
-- LEADS: ${JSON.stringify(leads.map(l => ({ id: l.id, business_name: l.business_name, phone: l.phone, category: l.category, website_status: l.website_status, priority: l.priority, outreach_status: l.outreach_status, last_contacted: l.last_contacted, follow_up_date: l.follow_up_date })))}
+- LEADS: ${JSON.stringify(leads.map(l => ({ id: l.id, business_name: l.business_name, phone: l.phone, email: l.email || '', category: l.category, website_status: l.website_status, priority: l.priority, outreach_status: l.outreach_status, last_contacted: l.last_contacted, follow_up_date: l.follow_up_date })))}
 - PROJECTS: ${JSON.stringify(projects.map(p => ({ id: p.id, project_name: p.project_name, client_name: p.client_name, status: p.status, deadline: p.deadline })))}
 - INVOICES: ${JSON.stringify(invoices.map(i => ({ id: i.id, client_name: i.client_name, amount: i.amount, status: i.status, due_date: i.due_date })))}
 
@@ -1670,7 +1742,7 @@ You MUST respond ONLY with a JSON object of this structure:
 {
   "response": "Your conversational answer to the user in Hinglish/Hindi or English (matching user language). Keep it concise, helpful, and premium.",
   "action": {
-    "type": "FILTER" | "UPDATE_LEAD" | "SEND_EMAIL" | "SEND_WHATSAPP" | "CHECK_NOTIFICATIONS" | "NONE",
+    "type": "FILTER" | "UPDATE_LEAD" | "SEND_EMAIL" | "SEND_WHATSAPP" | "SEND_INSTAGRAM" | "NONE",
     "params": {
       "searchTerm": "...", 
       "filterStatus": "...", 
@@ -1692,64 +1764,139 @@ You MUST respond ONLY with a JSON object of this structure:
       "message": "...",
       "leadId": "...",
       
-      "type": "whatsapp" | "instagram"
+      "handle": "...",
+      "message": "...",
+      "leadId": "..."
     }
   }
 }
 
-EXAMPLES:
-1. Croydon leads check:
-User: "Show me all Croydon leads not contacted yet"
-Response: { "response": "Sure, filtering leads in Croydon with 'Not Contacted' status.", "action": { "type": "FILTER", "params": { "searchTerm": "Croydon", "filterStatus": "Not Contacted", "filterPriority": "All", "filterCategory": "All" } } }
+You must return ONLY the raw JSON block. No markdown backticks, no markdown formatting.`;
 
-2. Status update:
-User: "Mark Bobbi's Hair Salon as Replied"
-Response: { "response": "Done! I have marked Bobbi's Hair Salon as 'Replied'.", "action": { "type": "UPDATE_LEAD", "params": { "leadId": "lead_12", "outreach_status": "Replied" } } }
-
-3. General count:
-User: "How many nail salons have I closed this week?"
-Response: { "response": "You have closed 2 nail salons this week (Studio L and Nails By Ann). Good job!", "action": { "type": "NONE" } }
-
-Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hinglish. Match lead ids exactly from dataset.`;
-
-      const dataPayload = {
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: systemPrompt },
-              { text: `User Message: "${userMsgText}"` }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+    if (provider === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ role: "user", parts: [{ text: systemPrompt }, { text: `User Message: "${userMessage}"` }] }],
+        generationConfig: { responseMimeType: "application/json" }
       };
       
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${syncConfig.geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataPayload)
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Gemini API Error: HTTP ${response.status}`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Gemini API Error: HTTP ${response.status}`);
+      const result = await response.json();
+      return result.candidates?.[0]?.content?.parts?.[0]?.text;
+    } 
+    
+    else if (provider === 'openai' || provider === 'ollama' || provider === 'custom') {
+      let url = '';
+      if (provider === 'openai') {
+        url = 'https://api.openai.com/v1/chat/completions';
+      } else if (provider === 'ollama') {
+        url = baseUrl || 'http://localhost:11434/v1/chat/completions';
+      } else {
+        url = baseUrl;
       }
       
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+      
+      const payload = {
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      };
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`${provider} API Error: HTTP ${response.status}`);
       const result = await response.json();
-      const textOutput = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      return result.choices?.[0]?.message?.content;
+    }
+    
+    else if (provider === 'claude') {
+      const url = baseUrl || 'https://api.anthropic.com/v1/messages';
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      };
+      
+      const payload = {
+        model: model,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: userMessage }
+        ]
+      };
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Claude API Error: HTTP ${response.status}`);
+      const result = await response.json();
+      return result.content?.[0]?.text;
+    }
+    
+    throw new Error(`Unsupported AI Provider: ${provider}`);
+  };
+
+  const handleSendChatMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    const userMsgText = chatInput.trim();
+    const newUserMsg = { id: 'msg_' + Date.now(), sender: 'user', text: userMsgText };
+    
+    setChatMessages(prev => [...prev, newUserMsg]);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    if (syncConfig.aiProvider !== 'ollama' && !syncConfig.aiApiKey) {
+      setChatMessages(prev => [...prev, {
+        id: 'msg_' + Date.now(),
+        sender: 'assistant',
+        text: '❌ Please set your API Key in Settings first to activate the AI Assistant.'
+      }]);
+      setIsChatLoading(false);
+      return;
+    }
+    
+    try {
+      const textOutput = await callUniversalAI(userMsgText);
       
       if (!textOutput) {
-        throw new Error("Empty response from Gemini API");
+        throw new Error("Empty response from AI Provider");
       }
       
-      const parsedRes = JSON.parse(textOutput.trim());
+      let cleanText = textOutput.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.substring(7);
+      }
+      if (cleanText.startsWith('```')) {
+        cleanText = cleanText.substring(3);
+      }
+      if (cleanText.endsWith('```')) {
+        cleanText = cleanText.substring(0, cleanText.length - 3);
+      }
+      cleanText = cleanText.trim();
       
-      // Execute the action if returned
+      const parsedRes = JSON.parse(cleanText);
+      
       if (parsedRes.action && parsedRes.action.type !== 'NONE') {
         executeAssistantAction(parsedRes.action);
       }
@@ -1947,8 +2094,11 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
       mode: tempMode,
       sheetId: tempSheetId,
       apiKey: tempApiKey,
-      geminiApiKey: tempGeminiApiKey,
-      googleClientId: tempGoogleClientId
+      googleClientId: tempGoogleClientId,
+      aiProvider: tempAiProvider,
+      aiModel: tempAiModel,
+      aiApiKey: tempAiApiKey,
+      aiBaseUrl: tempAiBaseUrl
     };
     setSyncConfig(newConfig);
     setIsSettingsOpen(false);
@@ -2124,6 +2274,17 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            <label className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 shadow-sm transition active:scale-95 cursor-pointer flex-1 sm:flex-initial">
+              <Upload className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span>Import CSV</span>
+              <input 
+                type="file" 
+                accept=".csv" 
+                onChange={handleCSVUpload} 
+                className="hidden" 
+              />
+            </label>
 
             <button 
               onClick={() => setIsAddLeadOpen(true)}
@@ -2373,7 +2534,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-[#0c0e12]/30">
+                <tr className="border-b border-slate-200 dark:border-white/5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-[#0c0e12]/30">
                   <th className="py-4 px-6">Business & Info</th>
                   <th className="py-4 px-4">Category</th>
                   <th className="py-4 px-4">Website</th>
@@ -2383,7 +2544,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                   <th className="py-4 px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-sm">
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-sm">
                 {filteredLeads.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="py-12 text-center text-slate-500 font-medium">
@@ -5128,18 +5289,77 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                   </motion.div>
                 )}
 
-                {/* Gemini API config */}
-                <div className="pt-3 border-t border-white/5 space-y-2">
-                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Gemini AI Assistant Key</label>
-                  <input 
-                    type="password"
-                    value={tempGeminiApiKey}
-                    onChange={(e) => setTempGeminiApiKey(e.target.value)}
-                    placeholder="Enter your Gemini API Key..."
-                    className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
-                  />
+                {/* Universal AI Assistant Config */}
+                <div className="pt-3 border-t border-white/5 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">🤖 AI Copilot Model Configuration</h4>
+                  
+                  {/* AI Provider Dropdown */}
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">AI Provider</label>
+                    <div className="relative">
+                      <select 
+                        value={tempAiProvider}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTempAiProvider(val);
+                          if (val === 'gemini') setTempAiModel('gemini-2.0-flash');
+                          else if (val === 'openai') setTempAiModel('gpt-4o-mini');
+                          else if (val === 'claude') setTempAiModel('claude-3-5-sonnet-latest');
+                          else if (val === 'ollama') setTempAiModel('llama3');
+                        }}
+                        className="w-full appearance-none bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 pr-8 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                      >
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI (ChatGPT)</option>
+                        <option value="claude">Anthropic Claude</option>
+                        <option value="ollama">Ollama (Local LLM)</option>
+                        <option value="custom">Custom (OpenAI Compatible)</option>
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* AI Model ID */}
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Model ID / Name</label>
+                    <input 
+                      type="text"
+                      value={tempAiModel}
+                      onChange={(e) => setTempAiModel(e.target.value)}
+                      placeholder="e.g. gemini-2.0-flash, gpt-4o-mini..."
+                      className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                    />
+                  </div>
+
+                  {/* API Base URL (Ollama or Custom only) */}
+                  {(tempAiProvider === 'ollama' || tempAiProvider === 'custom') && (
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">API Base URL</label>
+                      <input 
+                        type="text"
+                        value={tempAiBaseUrl}
+                        onChange={(e) => setTempAiBaseUrl(e.target.value)}
+                        placeholder={tempAiProvider === 'ollama' ? "http://localhost:11434/v1" : "https://api.groq.com/openai/v1"}
+                        className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {/* API Key */}
+                  {tempAiProvider !== 'ollama' && (
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">API Key</label>
+                      <input 
+                        type="password"
+                        value={tempAiApiKey}
+                        onChange={(e) => setTempAiApiKey(e.target.value)}
+                        placeholder="Enter API Key..."
+                        className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                      />
+                    </div>
+                  )}
                   <p className="text-[9px] text-slate-500 font-mono leading-relaxed">
-                    Required to unlock natural language CRM queries, auto-updates, and AI assistant actions. Get your API key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google AI Studio</a>.
+                    Set up your model keys to enable natural language commands, outreach generation, and lead updates.
                   </p>
                 </div>
 
@@ -5253,7 +5473,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
 
       {/* AI ASSISTANT CHATBOT */}
       {/* Floating Button */}
-      <div className="fixed bottom-6 right-6 z-40 print:hidden">
+      <div className="fixed bottom-6 right-6 z-50 print:hidden">
         <button
           onClick={() => setIsChatOpen(o => !o)}
           className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 text-white hover:scale-105 active:scale-95 transition cursor-pointer relative"
@@ -5277,10 +5497,10 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
             {/* Backdrop on mobile */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.3 }}
+              animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsChatOpen(false)}
-              className="fixed inset-0 bg-black z-45 lg:hidden cursor-pointer"
+              className="fixed inset-0 bg-black z-[55] lg:hidden cursor-pointer"
             />
             
             <motion.div
@@ -5288,25 +5508,25 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-slate-950/98 dark:bg-[#0c0e12]/98 border-l border-slate-200 dark:border-white/10 z-46 shadow-2xl flex flex-col justify-between backdrop-blur-md"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-white dark:bg-[#0c0e12]/98 border-l border-slate-200 dark:border-white/10 z-[60] shadow-2xl flex flex-col justify-between backdrop-blur-md"
             >
               {/* Header */}
-              <div className="p-4 border-b border-slate-200 dark:border-white/5 flex items-center justify-between bg-slate-900/40">
+              <div className="p-4 border-b border-slate-200 dark:border-white/5 flex items-center justify-between bg-slate-50 dark:bg-slate-900/40">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center">
-                    <Bot className="w-4.5 h-4.5 text-indigo-400" />
+                    <Bot className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
                       Vexo AI Copilot
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-mono">CRM AI Assistant</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">CRM AI Assistant</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsChatOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -5325,7 +5545,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                       className={`p-3 rounded-2xl text-xs leading-relaxed ${
                         msg.sender === 'user'
                           ? 'bg-indigo-600 text-white rounded-tr-none shadow-md'
-                          : 'bg-slate-105 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-250 rounded-tl-none shadow-sm'
+                          : 'bg-slate-100 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-250 rounded-tl-none shadow-sm'
                       }`}
                     >
                       {msg.text}
@@ -5338,7 +5558,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                 
                 {isChatLoading && (
                   <div className="flex flex-col items-start mr-auto max-w-[85%]">
-                    <div className="p-3 rounded-2xl bg-slate-105 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-400 rounded-tl-none flex items-center gap-1.5 text-xs">
+                    <div className="p-3 rounded-2xl bg-slate-100 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-400 rounded-tl-none flex items-center gap-1.5 text-xs">
                       <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -5348,7 +5568,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
               </div>
 
               {/* Suggestions & Input area */}
-              <div className="p-4 border-t border-slate-200 dark:border-white/5 bg-slate-900/20">
+              <div className="p-4 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/20">
                 {/* Suggestions row */}
                 <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-none mb-1">
                   <button
