@@ -290,6 +290,7 @@ export default function App() {
           sheetId: '',
           apiKey: '',
           geminiApiKey: '',
+          googleClientId: '',
           ...parsed
         };
       } catch (e) {
@@ -301,6 +302,7 @@ export default function App() {
       sheetId: '',
       apiKey: '',
       geminiApiKey: '',
+      googleClientId: '',
     };
   });
 
@@ -342,6 +344,18 @@ export default function App() {
       setLocalNotes(selectedLead.notes || '');
       setNewLogSent('');
       setNewLogReply('');
+      
+      // Personalize default email body
+      setNewEmailSubject(`Outreach - ${templateConfig.brandName || "Vexo TeamX"} x ${selectedLead.business_name}`);
+      setNewEmailBody(
+        `Hi ${selectedLead.business_name} Team,\n\n` +
+        `We noticed your business listed under ${selectedLead.category} and wanted to reach out. ` +
+        `At Vexo TeamX, we help brands scale using custom web solutions, AI automation, and high-converting UGC ads.\n\n` +
+        `Would you be open to a quick 10-minute chat this week to explore if we can help you get more customers?\n\n` +
+        `Best regards,\n` +
+        `${templateConfig.founderName || "Sarfaraz"}\n` +
+        `Founder, ${templateConfig.brandName || "Vexo TeamX"}`
+      );
     }
   }, [selectedLead?.id]);
 
@@ -352,7 +366,147 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  // Step 4: Gmail OAuth & sending states
+  const [gmailToken, setGmailToken] = useState(() => localStorage.getItem('gmail_access_token') || '');
+  const [gmailTokenExpiry, setGmailTokenExpiry] = useState(() => parseInt(localStorage.getItem('gmail_token_expiry') || '0'));
+  const [newEmailSubject, setNewEmailSubject] = useState('Outreach - Vexo TeamX');
+  const [newEmailBody, setNewEmailBody] = useState('');
+  const [newEmailTo, setNewEmailTo] = useState('');
+  
+  const isGmailAuthorized = gmailToken && gmailTokenExpiry > Date.now();
 
+  const handleGmailAuth = () => {
+    const clientId = syncConfig.googleClientId;
+    if (!clientId) {
+      showToast("⚠️ Set Google Client ID in Settings first!");
+      setIsSettingsOpen(true);
+      return;
+    }
+    
+    const redirectUri = window.location.origin + window.location.pathname;
+    const scope = "https://www.googleapis.com/auth/gmail.send";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&state=gmail_auth`;
+    
+    window.location.href = authUrl;
+  };
+
+  const handleGmailDisconnect = () => {
+    localStorage.removeItem('gmail_access_token');
+    localStorage.removeItem('gmail_token_expiry');
+    setGmailToken('');
+    setGmailTokenExpiry(0);
+    showToast('🔌 Gmail disconnected.');
+  };
+
+  const sendGmailMessage = async (toEmail, subject, body, leadId, passedToken = null) => {
+    const token = passedToken || localStorage.getItem('gmail_access_token');
+    const expiry = localStorage.getItem('gmail_token_expiry');
+    
+    if (!token || (!passedToken && (!expiry || Date.now() > parseInt(expiry)))) {
+      localStorage.setItem('pending_email_lead_id', leadId);
+      localStorage.setItem('pending_email_to', toEmail);
+      localStorage.setItem('pending_email_subject', subject);
+      localStorage.setItem('pending_email_body', body);
+      handleGmailAuth();
+      return;
+    }
+    
+    showToast('✉️ Sending email via Gmail...');
+    
+    const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
+    const emailLines = [
+      `To: ${toEmail}`,
+      `Subject: ${utf8Subject}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      '',
+      body.replace(/\n/g, '<br>')
+    ];
+    const emailContent = emailLines.join('\r\n');
+    const base64SafeEmail = btoa(unescape(encodeURIComponent(emailContent)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+      
+    try {
+      const response = await fetch(
+        'https://gmail.googleapis.com/v1/users/me/messages/send',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ raw: base64SafeEmail })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Gmail API error: HTTP ${response.status}`);
+      }
+      
+      const today = new Date().toISOString().split('T')[0];
+      const emailLog = {
+        id: 'email_sent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp: new Date().toISOString(),
+        sender: 'you',
+        text: `✉️ Email Sent via Gmail\nTo: ${toEmail}\nSubject: ${subject}\n\n${body}`
+      };
+      
+      const targetLead = leads.find(l => l.id === leadId);
+      if (targetLead) {
+        const existingLogs = targetLead.logs || [];
+        const updatedLead = {
+          ...targetLead,
+          logs: [...existingLogs, emailLog],
+          last_contacted: today
+        };
+        handleUpdateLeadDetail(updatedLead, '✉️ Email sent & logged!');
+      } else {
+        showToast('✉️ Email sent successfully!');
+      }
+      
+    } catch (e) {
+      console.error(e);
+      showToast(`❌ Failed to send email: ${e.message}`);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      const state = params.get('state');
+      
+      if (accessToken && state === 'gmail_auth') {
+        const expiresIn = params.get('expires_in') || '3600';
+        const expiryTime = Date.now() + parseInt(expiresIn) * 1000;
+        
+        localStorage.setItem('gmail_access_token', accessToken);
+        localStorage.setItem('gmail_token_expiry', expiryTime.toString());
+        
+        setGmailToken(accessToken);
+        setGmailTokenExpiry(expiryTime);
+        
+        window.history.replaceState(null, null, window.location.pathname + window.location.search);
+        showToast('🔑 Gmail successfully authorized!');
+        
+        const pendingLeadId = localStorage.getItem('pending_email_lead_id');
+        const pendingTo = localStorage.getItem('pending_email_to');
+        const pendingSubject = localStorage.getItem('pending_email_subject');
+        const pendingBody = localStorage.getItem('pending_email_body');
+        
+        if (pendingLeadId && pendingTo && pendingSubject && pendingBody) {
+          sendGmailMessage(pendingTo, pendingSubject, pendingBody, pendingLeadId, accessToken);
+          localStorage.removeItem('pending_email_lead_id');
+          localStorage.removeItem('pending_email_to');
+          localStorage.removeItem('pending_email_subject');
+          localStorage.removeItem('pending_email_body');
+        }
+      }
+    }
+  }, [leads]);
   const [selectedProject, setSelectedProject] = useState(null);
 
   const [projects, setProjects] = useState(() => {
@@ -449,11 +603,13 @@ export default function App() {
   const [tempApiKey, setTempApiKey] = useState(syncConfig.apiKey);
   const [tempMode, setTempMode] = useState(syncConfig.mode);
   const [tempGeminiApiKey, setTempGeminiApiKey] = useState(syncConfig.geminiApiKey || '');
+  const [tempGoogleClientId, setTempGoogleClientId] = useState(syncConfig.googleClientId || '');
 
   // New Lead Form State
   const [newLeadForm, setNewLeadForm] = useState({
     business_name: '',
     phone: '',
+    email: '',
     address: '',
     category: '',
     website_status: 'Needs Redesign',
@@ -1206,9 +1362,38 @@ export default function App() {
     
     // Step 4 integration hooks
     else if (type === 'SEND_EMAIL') {
-      showToast(`✉️ AI action: Send email to ${params.email || 'lead'}`);
-      if (window.handleSendGmailAction) {
-        window.handleSendGmailAction(params);
+      const { email, subject, body, leadId } = params;
+      let targetEmail = email;
+      let targetLeadId = leadId;
+      
+      if (!targetLeadId && targetEmail) {
+        const found = leads.find(l => (l.email && l.email.toLowerCase() === targetEmail.toLowerCase()));
+        if (found) targetLeadId = found.id;
+      }
+      
+      if (targetLeadId && !targetEmail) {
+        const found = leads.find(l => l.id === targetLeadId);
+        if (found) targetEmail = found.email;
+      }
+      
+      if (!targetEmail && (leadId || email)) {
+        const searchName = leadId || email;
+        const found = leads.find(l => l.business_name.toLowerCase().includes(searchName.toLowerCase()));
+        if (found) {
+          targetLeadId = found.id;
+          targetEmail = found.email;
+        }
+      }
+      
+      if (targetEmail) {
+        sendGmailMessage(
+          targetEmail, 
+          subject || `Outreach - ${templateConfig.brandName || "Vexo TeamX"}`, 
+          body || `Hi, we noticed your website and would love to help.`, 
+          targetLeadId || "unknown"
+        );
+      } else {
+        showToast("❌ AI: Could not find client email address!");
       }
     }
     
@@ -1541,7 +1726,8 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
       mode: tempMode,
       sheetId: tempSheetId,
       apiKey: tempApiKey,
-      geminiApiKey: tempGeminiApiKey
+      geminiApiKey: tempGeminiApiKey,
+      googleClientId: tempGoogleClientId
     };
     setSyncConfig(newConfig);
     setIsSettingsOpen(false);
@@ -3196,6 +3382,18 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                   </div>
 
                   <div className="col-span-2 p-3 bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl">
+                    <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Contact Email</div>
+                    <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-1 flex items-center justify-between gap-2">
+                      <span className="font-mono">{selectedLead.email || '—'}</span>
+                      {selectedLead.email && (
+                        <button onClick={() => copyToClipboard(selectedLead.email, 'email')} className="text-indigo-400 hover:text-white cursor-pointer">
+                          {copiedId === 'email' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 p-3 bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl">
                     <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Business Address</div>
                     <div className="text-xs text-slate-300 mt-1 flex items-start gap-1">
                       <MapPin className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
@@ -3281,6 +3479,18 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                     </div>
                   </div>
 
+                  {/* Contact Email input */}
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Contact Email</label>
+                    <input 
+                      type="email"
+                      placeholder="client@example.com"
+                      value={selectedLead.email || ''}
+                      onChange={(e) => handleUpdateLeadDetail({ ...selectedLead, email: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2 px-3 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
+
                   {/* Notes Area */}
                   <div>
                     <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1.5">Outreach Conversation Notes</label>
@@ -3296,6 +3506,82 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                       placeholder="Add meeting notes, call recap, design requests or project budget estimate..."
                       className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 resize-none"
                     />
+                  </div>
+
+                  {/* Gmail Integration Section */}
+                  <div className="border-t border-slate-200 dark:border-white/5 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        ✉️ Gmail Outreach
+                      </h3>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full ${isGmailAuthorized ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                        {isGmailAuthorized ? 'Connected' : 'Not Connected'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 space-y-3">
+                      {/* Email input field */}
+                      <div>
+                        <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">To Email Address</label>
+                        <input
+                          type="email"
+                          placeholder="client@example.com"
+                          value={selectedLead.email || ''}
+                          onChange={(e) => {
+                            handleUpdateLeadDetail({ ...selectedLead, email: e.target.value }, null);
+                          }}
+                          className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50 font-mono"
+                        />
+                      </div>
+
+                      {/* Email Subject */}
+                      <div>
+                        <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">Subject</label>
+                        <input
+                          type="text"
+                          placeholder="Email Subject..."
+                          value={newEmailSubject}
+                          onChange={(e) => setNewEmailSubject(e.target.value)}
+                          className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50"
+                        />
+                      </div>
+
+                      {/* Email Body */}
+                      <div>
+                        <label className="block text-[9px] text-slate-500 font-mono tracking-wider uppercase mb-1">Email Body (HTML supported)</label>
+                        <textarea
+                          rows="4"
+                          placeholder="Write your email here..."
+                          value={newEmailBody}
+                          onChange={(e) => setNewEmailBody(e.target.value)}
+                          className="w-full bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/5 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1">
+                        <p className="text-[9px] text-slate-500 font-mono italic max-w-[170px]">
+                          {isGmailAuthorized ? 'Authorized via Google OAuth' : 'Requires Client ID in Settings'}
+                        </p>
+                        {isGmailAuthorized ? (
+                          <button
+                            type="button"
+                            onClick={() => sendGmailMessage(selectedLead.email || '', newEmailSubject, newEmailBody, selectedLead.id)}
+                            disabled={!selectedLead.email || !newEmailBody.trim()}
+                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white text-[11px] font-semibold rounded-lg shadow-md transition cursor-pointer"
+                          >
+                            Send Email
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGmailAuth}
+                            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-semibold rounded-lg shadow-md transition cursor-pointer"
+                          >
+                            🔑 Connect Gmail
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Log Conversation / Chat History Section */}
@@ -4362,7 +4648,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                         type="button"
                         onClick={fetchFromGoogleSheets}
                         disabled={syncing || !tempSheetId || !tempApiKey}
-                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5"
+                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
                         Import Sheet
@@ -4371,7 +4657,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                         type="button"
                         onClick={() => syncWithGoogleSheets({ mode: 'sheets', sheetId: tempSheetId, apiKey: tempApiKey })}
                         disabled={syncing || !tempSheetId || !tempApiKey}
-                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5"
+                        className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/5 text-[11px] font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Upload className="w-3.5 h-3.5" />
                         Export to Sheet
@@ -4379,6 +4665,7 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                     </div>
                   </motion.div>
                 )}
+
                 {/* Gemini API config */}
                 <div className="pt-3 border-t border-white/5 space-y-2">
                   <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Gemini AI Assistant Key</label>
@@ -4387,11 +4674,54 @@ Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hing
                     value={tempGeminiApiKey}
                     onChange={(e) => setTempGeminiApiKey(e.target.value)}
                     placeholder="Enter your Gemini API Key..."
-                    className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50 font-mono"
+                    className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
                   />
                   <p className="text-[9px] text-slate-500 font-mono leading-relaxed">
                     Required to unlock natural language CRM queries, auto-updates, and AI assistant actions. Get your API key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google AI Studio</a>.
                   </p>
+                </div>
+
+                {/* Google OAuth client config */}
+                <div className="pt-3 border-t border-white/5 space-y-2">
+                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Google OAuth Client ID</label>
+                  <input 
+                    type="text"
+                    value={tempGoogleClientId}
+                    onChange={(e) => setTempGoogleClientId(e.target.value)}
+                    placeholder="e.g. 1234567890-abc123xyz.apps.googleusercontent.com"
+                    className="w-full bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50 font-mono"
+                  />
+                  <p className="text-[9px] text-slate-500 font-mono leading-relaxed">
+                    Required for client-side Gmail sending. Create an OAuth Client ID (Web Application) in <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a>.
+                  </p>
+                  
+                  {/* Auth Status & Action */}
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${isGmailAuthorized ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                        Gmail: {isGmailAuthorized ? 'Authorized' : 'Not Connected'}
+                      </span>
+                    </div>
+                    {isGmailAuthorized ? (
+                      <button
+                        type="button"
+                        onClick={handleGmailDisconnect}
+                        className="px-2.5 py-1 text-[10px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg transition font-semibold cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleGmailAuth}
+                        disabled={!tempGoogleClientId}
+                        className="px-2.5 py-1 text-[10px] bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg transition font-semibold cursor-pointer"
+                      >
+                        Connect Gmail
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* CSV export utilities */}
