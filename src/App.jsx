@@ -734,14 +734,57 @@ export default function App() {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const todayFollowups = useMemo(() => {
-    return leads.filter(l => 
-      l.follow_up_date && 
-      l.follow_up_date <= todayStr && 
-      l.outreach_status !== 'Closed Won' && 
-      l.outreach_status !== 'Closed Lost' &&
-      l.outreach_status !== 'Not Interested'
-    );
+    return leads.filter(l => {
+      if (['Closed Won', 'Closed Lost', 'Not Interested'].includes(l.outreach_status)) {
+        return false;
+      }
+      
+      const isOverdueFollowUp = l.follow_up_date && l.follow_up_date <= todayStr;
+      
+      let isOldMessaged = false;
+      if (l.outreach_status === 'Messaged' && l.last_contacted) {
+        try {
+          const d1 = new Date(todayStr);
+          const d2 = new Date(l.last_contacted);
+          d1.setHours(0,0,0,0);
+          d2.setHours(0,0,0,0);
+          const diffTime = d1 - d2;
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          isOldMessaged = diffDays >= 3;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      return isOverdueFollowUp || isOldMessaged;
+    });
   }, [leads, todayStr]);
+
+  // Request browser notification permissions and trigger local alert
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(console.error);
+      }
+      
+      if (Notification.permission === 'granted' && todayFollowups.length > 0) {
+        const lastNotified = localStorage.getItem('last_followup_notification_date');
+        const todayKey = new Date().toISOString().split('T')[0];
+        
+        if (lastNotified !== todayKey) {
+          try {
+            new Notification('📢 VEXO CRM Follow-up Reminder', {
+              body: `You have ${todayFollowups.length} lead(s) that need follow-up today!`,
+              icon: '/favicon.ico'
+            });
+            localStorage.setItem('last_followup_notification_date', todayKey);
+          } catch (e) {
+            console.error('Notification error:', e);
+          }
+        }
+      }
+    }
+  }, [todayFollowups.length]);
 
   const overdueInvoices = useMemo(() => {
     return invoices.filter(i => 
@@ -1364,13 +1407,18 @@ export default function App() {
             <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-1 rounded-xl text-xs font-medium w-full sm:w-auto justify-center gap-1">
               <button
                 onClick={() => setActiveTab('leads')}
-                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 relative ${
                   activeTab === 'leads' 
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                Leads
+                <span>Leads</span>
+                {todayFollowups.length > 0 && (
+                  <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[10px] text-white font-extrabold flex items-center justify-center animate-pulse">
+                    {todayFollowups.length}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setActiveTab('projects')}
@@ -1454,6 +1502,72 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
         {activeTab === 'leads' && (
           <>
+            {/* Needs Follow-up Pinned Section */}
+            {todayFollowups.length > 0 && (
+              <section className="mb-6 bg-rose-50 dark:bg-rose-500/[0.02] border border-rose-205 dark:border-rose-500/20 rounded-2xl p-4 transition-colors duration-200">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-rose-100 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-450 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                    </span>
+                    <h3 className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                      ⚠️ Needs Follow-up ({todayFollowups.length})
+                    </h3>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono hidden sm:block">Please check outreach status or set a new follow-up date</p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {todayFollowups.map(lead => {
+                    const isOverdueFollowUp = lead.follow_up_date && lead.follow_up_date <= todayStr;
+                    return (
+                      <div 
+                        key={lead.id}
+                        onClick={() => setSelectedLead(lead)}
+                        className="p-3 bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 hover:border-rose-500/30 rounded-xl cursor-pointer transition duration-150 flex flex-col justify-between gap-2 shadow-sm dark:shadow-none"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[170px]">
+                              {lead.business_name}
+                            </h4>
+                            <p className="text-[10px] text-slate-550 capitalize">{lead.category}</p>
+                          </div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            isOverdueFollowUp 
+                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
+                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          }`}>
+                            {isOverdueFollowUp ? 'Overdue' : 'Messaged 3d+ ago'}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 font-mono border-t border-slate-100 dark:border-white/5 pt-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                          <span>Status: {lead.outreach_status}</span>
+                          <div className="flex items-center gap-2">
+                            {lead.outreach_status === 'Messaged' && (
+                              <button
+                                onClick={() => handleQuickStatusUpdate(lead.id, 'Replied')}
+                                className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 text-[9px] font-semibold cursor-pointer"
+                              >
+                                📩 Replied
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setSelectedLead(lead)}
+                              className="text-indigo-400 hover:underline text-[9px] font-semibold cursor-pointer"
+                            >
+                              Profile →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
         {/* STATS ROW */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
