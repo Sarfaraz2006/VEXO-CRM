@@ -284,7 +284,14 @@ export default function App() {
     const local = localStorage.getItem('leads_crm_sync_config');
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        return {
+          mode: 'local',
+          sheetId: '',
+          apiKey: '',
+          geminiApiKey: '',
+          ...parsed
+        };
       } catch (e) {
         console.error(e);
       }
@@ -293,6 +300,7 @@ export default function App() {
       mode: 'local', // 'local' or 'sheets'
       sheetId: '',
       apiKey: '',
+      geminiApiKey: '',
     };
   });
 
@@ -336,6 +344,14 @@ export default function App() {
       setNewLogReply('');
     }
   }, [selectedLead?.id]);
+
+  // Step 3: AI Assistant chatbot states
+  const [chatMessages, setChatMessages] = useState([
+    { id: '1', sender: 'assistant', text: 'Hello Sarfaraz! Main aapki leads, projects, aur billing queries manage karne me kaise madad kar sakta hoon?' }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
   const [selectedProject, setSelectedProject] = useState(null);
 
@@ -432,6 +448,7 @@ export default function App() {
   const [tempSheetId, setTempSheetId] = useState(syncConfig.sheetId);
   const [tempApiKey, setTempApiKey] = useState(syncConfig.apiKey);
   const [tempMode, setTempMode] = useState(syncConfig.mode);
+  const [tempGeminiApiKey, setTempGeminiApiKey] = useState(syncConfig.geminiApiKey || '');
 
   // New Lead Form State
   const [newLeadForm, setNewLeadForm] = useState({
@@ -1138,6 +1155,218 @@ export default function App() {
     }
   };
 
+  const executeAssistantAction = (action) => {
+    const { type, params } = action;
+    if (!type || type === 'NONE') return;
+
+    if (type === 'FILTER') {
+      if (params.searchTerm !== undefined) setSearchTerm(params.searchTerm);
+      if (params.filterStatus !== undefined) setFilterStatus(params.filterStatus);
+      if (params.filterPriority !== undefined) setFilterPriority(params.filterPriority);
+      if (params.filterCategory !== undefined) setFilterCategory(params.filterCategory);
+      showToast('🔍 AI applied filters to dashboard!');
+    }
+    
+    else if (type === 'UPDATE_LEAD') {
+      const { leadId, outreach_status, priority, notes, follow_up_date } = params;
+      const targetLead = leads.find(l => l.id === leadId);
+      if (targetLead) {
+        const today = new Date().toISOString().split('T')[0];
+        let updatedLead = { ...targetLead };
+        
+        if (outreach_status) {
+          const prevStatus = targetLead.outreach_status;
+          updatedLead.outreach_status = outreach_status;
+          updatedLead.last_contacted = today;
+          // Add system log
+          const systemLog = {
+            id: 'sys_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            timestamp: new Date().toISOString(),
+            sender: 'system',
+            text: `Status changed from "${prevStatus}" to "${outreach_status}" via AI Assistant`
+          };
+          updatedLead.logs = [...(updatedLead.logs || []), systemLog];
+        }
+        
+        if (priority) {
+          updatedLead.priority = priority;
+        }
+        
+        if (follow_up_date) {
+          updatedLead.follow_up_date = follow_up_date;
+        }
+        
+        if (notes) {
+          updatedLead.notes = (updatedLead.notes ? updatedLead.notes + "\n" : "") + notes;
+        }
+        
+        handleUpdateLeadDetail(updatedLead, `⚡ AI updated lead "${targetLead.business_name}"!`);
+      }
+    }
+    
+    // Step 4 integration hooks
+    else if (type === 'SEND_EMAIL') {
+      showToast(`✉️ AI action: Send email to ${params.email || 'lead'}`);
+      if (window.handleSendGmailAction) {
+        window.handleSendGmailAction(params);
+      }
+    }
+    
+    // Step 5 integration hooks
+    else if (type === 'SEND_WHATSAPP') {
+      showToast(`💬 AI action: Send WhatsApp to ${params.phone}`);
+      if (window.handleSendWhatsAppAction) {
+        window.handleSendWhatsAppAction(params);
+      }
+    }
+    
+    else if (type === 'CHECK_NOTIFICATIONS') {
+      showToast(`🔔 AI action: Checking ${params.type} notifications`);
+      if (window.handleCheckNotificationsAction) {
+        window.handleCheckNotificationsAction(params);
+      }
+    }
+  };
+
+  const handleSendChatMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    const userMsgText = chatInput.trim();
+    const newUserMsg = { id: 'msg_' + Date.now(), sender: 'user', text: userMsgText };
+    
+    setChatMessages(prev => [...prev, newUserMsg]);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    if (!syncConfig.geminiApiKey) {
+      setChatMessages(prev => [...prev, {
+        id: 'msg_' + Date.now(),
+        sender: 'assistant',
+        text: '❌ Please set your Gemini API Key in the Settings Modal first to activate the AI Assistant.'
+      }]);
+      setIsChatLoading(false);
+      return;
+    }
+    
+    try {
+      const systemPrompt = `You are Vexo AI, the intelligent virtual assistant inside the Vexo TeamX CRM.
+Your job is to assist the user (Sarfaraz) in query analysis, filtering the CRM dashboard, updating lead records, and preparing outbound actions.
+
+CURRENT DATE/TIME: ${new Date().toISOString()} (Use this to interpret relative dates like "today", "yesterday", "this week", "3 days ago").
+
+CURRENT CRM DATASETS:
+- LEADS: ${JSON.stringify(leads.map(l => ({ id: l.id, business_name: l.business_name, phone: l.phone, category: l.category, website_status: l.website_status, priority: l.priority, outreach_status: l.outreach_status, last_contacted: l.last_contacted, follow_up_date: l.follow_up_date })))}
+- PROJECTS: ${JSON.stringify(projects.map(p => ({ id: p.id, project_name: p.project_name, client_name: p.client_name, status: p.status, deadline: p.deadline })))}
+- INVOICES: ${JSON.stringify(invoices.map(i => ({ id: i.id, client_name: i.client_name, amount: i.amount, status: i.status, due_date: i.due_date })))}
+
+You MUST respond ONLY with a JSON object of this structure:
+{
+  "response": "Your conversational answer to the user in Hinglish/Hindi or English (matching user language). Keep it concise, helpful, and premium.",
+  "action": {
+    "type": "FILTER" | "UPDATE_LEAD" | "SEND_EMAIL" | "SEND_WHATSAPP" | "CHECK_NOTIFICATIONS" | "NONE",
+    "params": {
+      "searchTerm": "...", 
+      "filterStatus": "...", 
+      "filterPriority": "...", 
+      "filterCategory": "...",
+      
+      "leadId": "...", 
+      "outreach_status": "...", 
+      "priority": "...", 
+      "notes": "...", 
+      "follow_up_date": "YYYY-MM-DD",
+      
+      "email": "...", 
+      "subject": "...",
+      "body": "...",
+      "leadId": "...",
+      
+      "phone": "...",
+      "message": "...",
+      "leadId": "...",
+      
+      "type": "whatsapp" | "instagram"
+    }
+  }
+}
+
+EXAMPLES:
+1. Croydon leads check:
+User: "Show me all Croydon leads not contacted yet"
+Response: { "response": "Sure, filtering leads in Croydon with 'Not Contacted' status.", "action": { "type": "FILTER", "params": { "searchTerm": "Croydon", "filterStatus": "Not Contacted", "filterPriority": "All", "filterCategory": "All" } } }
+
+2. Status update:
+User: "Mark Bobbi's Hair Salon as Replied"
+Response: { "response": "Done! I have marked Bobbi's Hair Salon as 'Replied'.", "action": { "type": "UPDATE_LEAD", "params": { "leadId": "lead_12", "outreach_status": "Replied" } } }
+
+3. General count:
+User: "How many nail salons have I closed this week?"
+Response: { "response": "You have closed 2 nail salons this week (Studio L and Nails By Ann). Good job!", "action": { "type": "NONE" } }
+
+Note: Keep your replies professional. Prioritize Hinglish if user speaks in Hinglish. Match lead ids exactly from dataset.`;
+
+      const dataPayload = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: systemPrompt },
+              { text: `User Message: "${userMsgText}"` }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      };
+      
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${syncConfig.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataPayload)
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Gemini API Error: HTTP ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const textOutput = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!textOutput) {
+        throw new Error("Empty response from Gemini API");
+      }
+      
+      const parsedRes = JSON.parse(textOutput.trim());
+      
+      // Execute the action if returned
+      if (parsedRes.action && parsedRes.action.type !== 'NONE') {
+        executeAssistantAction(parsedRes.action);
+      }
+      
+      setChatMessages(prev => [...prev, {
+        id: 'msg_' + Date.now(),
+        sender: 'assistant',
+        text: parsedRes.response,
+        action: parsedRes.action
+      }]);
+      
+    } catch (err) {
+      console.error(err);
+      setChatMessages(prev => [...prev, {
+        id: 'msg_' + Date.now(),
+        sender: 'assistant',
+        text: "⚠️ Error executing command: " + err.message + ". Please try again."
+      }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
   const handleAddProject = (e) => {
     e.preventDefault();
     if (!newProjectForm.client_name || !newProjectForm.project_name) {
@@ -1311,7 +1540,8 @@ export default function App() {
     const newConfig = {
       mode: tempMode,
       sheetId: tempSheetId,
-      apiKey: tempApiKey
+      apiKey: tempApiKey,
+      geminiApiKey: tempGeminiApiKey
     };
     setSyncConfig(newConfig);
     setIsSettingsOpen(false);
@@ -4149,6 +4379,20 @@ export default function App() {
                     </div>
                   </motion.div>
                 )}
+                {/* Gemini API config */}
+                <div className="pt-3 border-t border-white/5 space-y-2">
+                  <label className="block text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-1">Gemini AI Assistant Key</label>
+                  <input 
+                    type="password"
+                    value={tempGeminiApiKey}
+                    onChange={(e) => setTempGeminiApiKey(e.target.value)}
+                    placeholder="Enter your Gemini API Key..."
+                    className="w-full bg-slate-55 dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-350 outline-none focus:border-indigo-500/50 font-mono"
+                  />
+                  <p className="text-[9px] text-slate-500 font-mono leading-relaxed">
+                    Required to unlock natural language CRM queries, auto-updates, and AI assistant actions. Get your API key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google AI Studio</a>.
+                  </p>
+                </div>
 
                 {/* CSV export utilities */}
                 <div className="pt-3 border-t border-white/5 space-y-2">
@@ -4212,6 +4456,149 @@ export default function App() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* AI ASSISTANT CHATBOT */}
+      {/* Floating Button */}
+      <div className="fixed bottom-6 right-6 z-40 print:hidden">
+        <button
+          onClick={() => setIsChatOpen(o => !o)}
+          className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 text-white hover:scale-105 active:scale-95 transition cursor-pointer relative"
+          title="Open Vexo AI Assistant"
+        >
+          {isChatOpen ? <X className="w-6 h-6" /> : <Bot className="w-7 h-7" />}
+          {/* Pulsing Notification Dot */}
+          {!isChatOpen && (
+            <span className="absolute top-0.5 right-0.5 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Chat Sidebar Panel */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <>
+            {/* Backdrop on mobile */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.3 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsChatOpen(false)}
+              className="fixed inset-0 bg-black z-45 lg:hidden cursor-pointer"
+            />
+            
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-slate-950/98 dark:bg-[#0c0e12]/98 border-l border-slate-200 dark:border-white/10 z-46 shadow-2xl flex flex-col justify-between backdrop-blur-md"
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-slate-200 dark:border-white/5 flex items-center justify-between bg-slate-900/40">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center">
+                    <Bot className="w-4.5 h-4.5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                      Vexo AI Copilot
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-mono">CRM AI Assistant</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Chat Feed */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col scrollbar-thin">
+                {chatMessages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col max-w-[85%] ${
+                      msg.sender === 'user' ? 'self-end items-end ml-auto' : 'self-start items-start mr-auto'
+                    }`}
+                  >
+                    <div
+                      className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-indigo-600 text-white rounded-tr-none shadow-md'
+                          : 'bg-slate-105 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-250 rounded-tl-none shadow-sm'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1">
+                      {msg.sender === 'user' ? 'You' : 'Vexo AI'}
+                    </span>
+                  </div>
+                ))}
+                
+                {isChatLoading && (
+                  <div className="flex flex-col items-start mr-auto max-w-[85%]">
+                    <div className="p-3 rounded-2xl bg-slate-105 dark:bg-[#171922] border border-slate-200 dark:border-white/5 text-slate-400 rounded-tl-none flex items-center gap-1.5 text-xs">
+                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Suggestions & Input area */}
+              <div className="p-4 border-t border-slate-200 dark:border-white/5 bg-slate-900/20">
+                {/* Suggestions row */}
+                <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-none mb-1">
+                  <button
+                    onClick={() => setChatInput("Show me Croydon leads not contacted")}
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                  >
+                    🔍 Croydon leads not contacted
+                  </button>
+                  <button
+                    onClick={() => setChatInput("Nail salons closed this week")}
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                  >
+                    💅 Nail salons closed
+                  </button>
+                  <button
+                    onClick={() => setChatInput("Which category has best response rate?")}
+                    className="flex-shrink-0 px-2.5 py-1 text-[10px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-650 dark:text-slate-350 rounded-lg font-medium transition cursor-pointer"
+                  >
+                    📈 Best category response
+                  </button>
+                </div>
+
+                <form onSubmit={handleSendChatMessage} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type AI command (e.g., mark Studio L won)..."
+                    disabled={isChatLoading}
+                    className="flex-1 bg-white dark:bg-[#171922] border border-slate-200 dark:border-white/5 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-300 outline-none focus:border-indigo-500/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || isChatLoading}
+                    className="px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
