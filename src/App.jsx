@@ -29,7 +29,10 @@ import {
   Compass,
   Share2,
   MoreHorizontal,
-  ChevronDown
+  ChevronDown,
+  Send,
+  Clock,
+  Check
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -89,6 +92,102 @@ export default function App() {
   const showToast = (msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3500);
+  };
+
+  // Step 1: One-tap Quick Messaged Handler
+  const handleQuickMessaged = async (lead) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const logItem = {
+      id: `log_${Date.now()}`,
+      text: `Outreach message sent on ${todayStr} at ${timeStr}`,
+      date: new Date().toISOString(),
+      type: 'outreach'
+    };
+    const updatedHistory = [logItem, ...(lead.conversation_history || [])];
+
+    const updates = {
+      outreach_status: 'Outreached',
+      last_contacted: todayStr,
+      conversation_history: updatedHistory
+    };
+
+    setLeads(prev =>
+      prev.map(l => (l.id === lead.id ? { ...l, ...updates } : l))
+    );
+
+    if (editingLead && editingLead.id === lead.id) {
+      setEditingLead(prev => ({ ...prev, ...updates }));
+      setFormData(prev => ({ ...prev, outreach_status: 'Outreached' }));
+    }
+
+    try {
+      await fetch(`${API_BASE}/leads/${lead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      showToast(`✓ Messaged logged for ${lead.business_name}`);
+    } catch (err) {
+      console.error('Quick messaged error:', err);
+    }
+  };
+
+  // Step 1: Add Log Entry Handler
+  const handleAddLogEntry = async (leadId) => {
+    if (!logInput.trim()) return;
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+
+    const logItem = {
+      id: `log_${Date.now()}`,
+      text: logInput.trim(),
+      date: new Date().toISOString(),
+      type: 'note'
+    };
+    const updatedHistory = [logItem, ...(lead.conversation_history || [])];
+
+    setLeads(prev =>
+      prev.map(l => (l.id === leadId ? { ...l, conversation_history: updatedHistory } : l))
+    );
+
+    if (editingLead && editingLead.id === leadId) {
+      setEditingLead(prev => ({ ...prev, conversation_history: updatedHistory }));
+    }
+
+    setLogInput('');
+
+    try {
+      await fetch(`${API_BASE}/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_history: updatedHistory })
+      });
+      showToast('✓ Conversation log entry saved!');
+    } catch (err) {
+      console.error('Log entry save failed:', err);
+    }
+  };
+
+  // Step 1: Auto-Save Form Field Handler for Detail Modal
+  const handleFieldAutoSave = async (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+
+    if (editingLead) {
+      setLeads(prev =>
+        prev.map(l => (l.id === editingLead.id ? { ...l, [field]: value } : l))
+      );
+      try {
+        await fetch(`${API_BASE}/leads/${editingLead.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value })
+        });
+        showToast('✓ Field auto-saved', 'info');
+      } catch (err) {
+        console.error('Auto save error:', err);
+      }
+    }
   };
 
   // Fetch leads from API (or fallback to seedLeadsData)
@@ -781,6 +880,14 @@ export default function App() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => handleQuickMessaged(lead)}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm"
+                            title="One-Tap Messaged: Set status to Outreached & log date"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Messaged</span>
+                          </button>
+                          <button
                             onClick={() => openEditModal(lead)}
                             className="p-2 rounded-xl bg-slate-800/80 hover:bg-indigo-600 text-slate-300 hover:text-white transition-all shadow"
                             title="Edit Lead"
@@ -916,6 +1023,14 @@ export default function App() {
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleQuickMessaged(lead)}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm"
+                      title="One-Tap Messaged"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Messaged</span>
+                    </button>
+                    <button
                       onClick={() => openEditModal(lead)}
                       className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
                     >
@@ -1050,7 +1165,7 @@ export default function App() {
                   <label className="block text-slate-400 mb-1 font-semibold">Priority</label>
                   <select
                     value={formData.priority}
-                    onChange={e => setFormData({ ...formData, priority: e.target.value })}
+                    onChange={e => handleFieldAutoSave('priority', e.target.value)}
                     className="w-full bg-[#06080E] border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
                   >
                     <option value="HIGH">HIGH</option>
@@ -1062,7 +1177,7 @@ export default function App() {
                   <label className="block text-slate-400 mb-1 font-semibold">Outreach Status</label>
                   <select
                     value={formData.outreach_status}
-                    onChange={e => setFormData({ ...formData, outreach_status: e.target.value })}
+                    onChange={e => handleFieldAutoSave('outreach_status', e.target.value)}
                     className="w-full bg-[#06080E] border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
                   >
                     <option value="New">New</option>
@@ -1072,6 +1187,67 @@ export default function App() {
                   </select>
                 </div>
               </div>
+
+              {/* STEP 1: CONVERSATION HISTORY & LOG A MESSAGE BOX */}
+              {editingLead && (
+                <div className="space-y-3 pt-3 border-t border-slate-800/80">
+                  <label className="block text-slate-300 font-bold flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-indigo-400">
+                      <MessageSquare className="w-3.5 h-3.5" /> Log Message / Running History
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">Auto-timestamped</span>
+                  </label>
+
+                  {/* Quick-Entry Box */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={logInput}
+                      onChange={e => setLogInput(e.target.value)}
+                      placeholder="Paste sent pitch or client reply..."
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddLogEntry(editingLead.id);
+                        }
+                      }}
+                      className="flex-1 bg-[#06080E] border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddLogEntry(editingLead.id)}
+                      className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Log
+                    </button>
+                  </div>
+
+                  {/* Log Feed */}
+                  <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
+                    {(editingLead.conversation_history || []).length === 0 ? (
+                      <p className="text-[11px] text-slate-500 italic">No message logs recorded yet.</p>
+                    ) : (
+                      editingLead.conversation_history.map(item => (
+                        <div
+                          key={item.id}
+                          className="p-2.5 rounded-xl bg-[#06080E] border border-slate-800/60 text-[11px] text-slate-300 space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-[10px] text-slate-400">
+                            <span className="font-semibold text-indigo-400 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              {new Date(item.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                            <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                              {item.type || 'note'}
+                            </span>
+                          </div>
+                          <p className="text-slate-200">{item.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
                 <button
