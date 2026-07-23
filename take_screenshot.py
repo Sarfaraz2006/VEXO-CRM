@@ -4,7 +4,7 @@ from playwright.async_api import async_playwright
 import os
 
 async def capture_state(page, name, action=None):
-    output_dir = "/root/.gemini/antigravity-cli/brain/f0e98dc7-93b3-4f08-bb2a-c18e448210b4"
+    output_dir = "/root/.hermes/fake_home/.gemini/antigravity-cli/brain/d2886c26-6a56-48c0-b746-b21dcc0f5a27"
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"leads_crm_{name}.png")
     
