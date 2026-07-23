@@ -1188,6 +1188,31 @@ export default function App() {
                 </div>
               </div>
 
+              {/* SALES AGENT GENERATED PITCH CARD */}
+              {editingLead && editingLead.draft_pitch && (
+                <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      Sales Agent Personalized Pitch
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(editingLead.draft_pitch);
+                        showToast('✓ Pitch copied to clipboard!');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600/80 hover:bg-indigo-500 text-white text-[10px] font-bold transition-all shadow"
+                    >
+                      Copy Pitch
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-300 whitespace-pre-line leading-relaxed bg-[#06080E]/80 p-2.5 rounded-xl border border-slate-800/60 font-mono">
+                    {editingLead.draft_pitch}
+                  </p>
+                </div>
+              )}
+
               {/* STEP 1: CONVERSATION HISTORY & LOG A MESSAGE BOX */}
               {editingLead && (
                 <div className="space-y-3 pt-3 border-t border-slate-800/80">
